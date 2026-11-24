@@ -274,3 +274,237 @@ body {
   width: 100%;
   height: 100%;
 }
+
+/* minimap */
+.minimap {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 220px;
+  text-align: center;
+}
+.minimap canvas {
+  display: block;
+  width: 220px;
+  height: 220px;
+}
+.minimap .district {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 4px;
+  text-shadow: 0 0 4px #000;
+}
+.speedo {
+  right: 262px;
+}
+
+/* full map + codex */
+.mapscreen {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 6, 12, 0.92);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+}
+.map-tabs {
+  display: flex;
+  gap: 24px;
+  padding: 14px 24px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.map-tabs span {
+  opacity: 0.5;
+  padding-bottom: 4px;
+}
+.map-tabs span.on {
+  opacity: 1;
+  border-bottom: 2px solid #31e8ff;
+}
+.map-canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  cursor: crosshair;
+}
+.map-help {
+  padding: 10px 24px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.screen.codex {
+  flex: 1;
+  overflow: auto;
+  padding: 0 24px 16px;
+}
+.codex-count {
+  opacity: 0.8;
+  margin-bottom: 10px;
+}
+.codex-wrap {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+  flex: 2 1 420px;
+}
+.codex-card {
+  --c: #31e8ff;
+  text-align: left;
+  background: #0d1520;
+  border: 1px solid #22303f;
+  border-left: 4px solid var(--c);
+  color: #e8f3ff;
+  padding: 8px 10px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: inherit;
+  cursor: pointer;
+}
+.codex-card .n {
+  font-size: 11px;
+  opacity: 0.6;
+}
+.codex-card .t {
+  font-weight: 700;
+}
+.codex-card .d {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.codex-card:not(.known) .t {
+  opacity: 0.5;
+}
+.codex-detail {
+  flex: 1 1 280px;
+  background: #0d1520;
+  border: 1px solid #22303f;
+  border-radius: 6px;
+  padding: 14px 18px;
+  align-self: flex-start;
+}
+.codex-detail h3 {
+  margin: 0 0 4px;
+}
+.codex-detail .dim {
+  opacity: 0.7;
+  margin-top: 0;
+}
+.codex-detail dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-top: 8px;
+}
+.codex-detail dd {
+  margin: 2px 0 0;
+}
+
+/* shared menu widgets + focus ring */
+[data-focus].focused {
+  outline: 2px solid #31e8ff;
+  outline-offset: 2px;
+}
+.btn {
+  display: block;
+  width: 100%;
+  background: #121c28;
+  border: 1px solid #2a3a4c;
+  color: #e8f3ff;
+  font: inherit;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.row.slider {
+  grid-template-columns: 1fr 110px 64px;
+}
+.row .bar {
+  height: 6px;
+  background: #1a2230;
+  border-radius: 3px;
+}
+.row .bar .fill {
+  height: 100%;
+  background: #31e8ff;
+  border-radius: 3px;
+}
+.row .val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.row.toggle.on .val {
+  color: #31e8ff;
+}
+
+/* photo mode */
+.screen.photo-panel {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: min(330px, calc(100vw - 32px));
+  box-sizing: border-box;
+  background: rgba(5, 9, 16, 0.88);
+  border: 1px solid #31e8ff44;
+  border-radius: 8px;
+  padding: 12px 14px;
+  pointer-events: auto;
+  font-size: 14px;
+}
+.photo-panel h3 {
+  margin: 0 0 6px;
+}
+.photo-panel .note {
+  font-size: 11px;
+  opacity: 0.7;
+  margin: 8px 0 0;
+}
+.photo-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0.6;
+}
+
+/* Architect Vision labels */
+.vision-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.vlabel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -10px 0 0 -28px;
+  font:
+    700 12px ui-monospace,
+    monospace;
+  color: #ffb347;
+  background: rgba(10, 39, 66, 0.75);
+  border: 1px solid #6fc7ff66;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}

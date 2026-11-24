@@ -91,11 +91,14 @@ export class Materials {
     });
     const bp = blueprintTexture();
     this.visionFacade = std({
+      color: 0x0a2742,
       map: bp,
       emissiveMap: bp,
-      emissive: 0x6fc7ff,
-      emissiveIntensity: 0.5,
+      emissive: 0x7fd8ff,
+      emissiveIntensity: 1.1,
       roughness: 1,
+      metalness: 0,
+      envMapIntensity: 0,
     });
     this.cloth = [0x2d5b8a, 0xa8402e, 0x2f2f33, 0xd7c49e, 0x3f7f5a, 0x7a3f8a, 0xe6e6e6].map((c) =>
       std({ color: c, roughness: 0.85 }),

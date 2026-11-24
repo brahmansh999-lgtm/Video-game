@@ -5,6 +5,12 @@ import { clamp, lerp, mulberry32, smoothstep } from '../core/rng';
 
 export const REFLECT_LAYER = 2;
 
+/** Sun direction for a time of day (hours): rises in the east (+x), tilted towards the south (+z). */
+export function sunDirection(hours: number, out: THREE.Vector3): THREE.Vector3 {
+  const h = ((hours - 6) / 12) * Math.PI;
+  return out.set(Math.cos(h), Math.sin(h) * 1.15, 0.45).normalize();
+}
+
 export class Atmosphere {
   readonly sky = new Sky();
   readonly sun = new THREE.DirectionalLight(0xffffff, 3);
@@ -114,10 +120,7 @@ export class Atmosphere {
     }
     this.skyTime += dt;
     // Sun path: rises in the east (+x), sets in the west, tilted towards the south (+z).
-    const h = ((this.time - 6) / 12) * Math.PI;
-    const elev = Math.sin(h) * 1.15;
-    const az = h;
-    this.sunDir.set(Math.cos(az), elev, 0.45).normalize();
+    sunDirection(this.time, this.sunDir);
     const elevDeg = THREE.MathUtils.radToDeg(Math.asin(this.sunDir.y));
     this.night = 1 - smoothstep(-7, 4, elevDeg);
     const day = 1 - this.night;
@@ -141,7 +144,7 @@ export class Atmosphere {
     if (moon) this.sun.color.setRGB(0.55, 0.65, 1);
     else this.sun.color.setRGB(1, lerp(0.62, 0.97, warm), lerp(0.38, 0.92, warm));
     this.sun.intensity = moon ? 0.3 * (1 - cloud * 0.7) : day * lerp(0.5, 2.6, warm) * (1 - cloud * 0.75);
-    this.hemi.intensity = lerp(0.1, 0.5, day) * (1 - cloud * 0.25) + cloud * 0.3 * day + this.flash * 3;
+    this.hemi.intensity = lerp(0.17, 0.5, day) * (1 - cloud * 0.25) + cloud * 0.3 * day + this.flash * 3;
     this.hemi.color.setRGB(lerp(0.25, 0.75, day), lerp(0.3, 0.85, day), lerp(0.5, 1, day));
     this.hemi.groundColor.setRGB(0.3 * day + 0.05, 0.27 * day + 0.05, 0.22 * day + 0.07);
 

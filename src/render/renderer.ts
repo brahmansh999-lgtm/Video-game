@@ -61,7 +61,7 @@ export class Renderer {
     this.hue = new HueSaturationEffect({ saturation: 0.08, hue: 0 });
     this.bc = new BrightnessContrastEffect({ brightness: 0, contrast: 0.06 });
     this.vignette = new VignetteEffect({ darkness: 0.35, offset: 0.3 });
-    this.dof = new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, focalLength: 0.05, bokehScale: 3 });
+    this.dof = new DepthOfFieldEffect(this.camera, { focusDistance: 40, focusRange: 20, bokehScale: 3 });
     window.addEventListener('resize', () => this.resize());
   }
 

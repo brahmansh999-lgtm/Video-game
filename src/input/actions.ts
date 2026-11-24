@@ -65,6 +65,7 @@ export const ACTIONS = [
   'debugTimeBack',
   'debugTimeFwd',
   'padTest',
+  'debugWeather',
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -110,10 +111,10 @@ export const REMAPPABLE: Action[] = (Object.keys(ACTION_LABELS) as Action[]).fil
 export function defaultBindings(): Bindings {
   return {
     keys: {
-      moveForward: ['KeyW', 'ArrowUp'],
-      moveBack: ['KeyS', 'ArrowDown'],
-      moveLeft: ['KeyA', 'ArrowLeft'],
-      moveRight: ['KeyD', 'ArrowRight'],
+      moveForward: ['KeyW'],
+      moveBack: ['KeyS'],
+      moveLeft: ['KeyA'],
+      moveRight: ['KeyD'],
       jump: ['Space'],
       sprint: ['ShiftLeft', 'ShiftRight'],
       interact: ['KeyE'],
@@ -154,6 +155,7 @@ export function defaultBindings(): Bindings {
       debugTimeBack: ['BracketLeft'],
       debugTimeFwd: ['BracketRight'],
       padTest: ['F1'],
+      debugWeather: ['F4'],
     },
     pad: {
       moveForward: [],
@@ -200,6 +202,7 @@ export function defaultBindings(): Bindings {
       debugTimeBack: [],
       debugTimeFwd: [],
       padTest: [],
+      debugWeather: [],
     },
   };
 }

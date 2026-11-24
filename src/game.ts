@@ -1,87 +1,73 @@
 /**
- * Phases 1–4: streamed world, sky, on-foot character, cars, aircraft with a full flight model,
- * flight HUD, vehicle audio, and a debug free camera. Keyboard/mouse and gamepad interchangeable.
+ * Phases 1–6: streamed world, sky and weather, city life, on-foot character, cars, aircraft,
+ * HUDs, audio, Architect Vision, Landmark Codex, map and photo mode.
+ * Keyboard/mouse and gamepad work interchangeably.
  */
 import * as THREE from 'three';
 import { audio } from './audio/audioEngine';
-import { VehicleSound, type EngineVoice } from './audio/vehicleSound';
 import { events } from './core/events';
 import { GameLoop } from './core/loop';
 import { Physics } from './core/physics';
 import { saveSettings, settings, type QualityName } from './core/settings';
+import { GameAudio } from './gameAudio';
+import { GameHud } from './gameHud';
 import { InputManager } from './input/InputManager';
-import { FreeCam } from './player/freeCam';
 import { PlayerController } from './player/playerController';
 import { Materials } from './render/materials';
 import { PRESETS, type QualityPreset } from './render/quality';
 import { Renderer } from './render/renderer';
 import { Atmosphere } from './render/sky';
-import { FlightHud } from './ui/flightHud';
+import { ArchitectVision } from './render/vision';
+import { WEATHER_TYPES, Weather } from './render/weather';
 import { GamepadTest } from './ui/gamepadTest';
-import { Hud } from './ui/hud';
+import { renderWorldMap } from './ui/mapRender';
+import { MapScreen } from './ui/mapScreen';
 import { PerfOverlay, Toasts } from './ui/overlays';
-import { Aircraft } from './vehicles/aircraft';
-import { Car } from './vehicles/car';
+import { PhotoMode } from './ui/photoMode';
 import { VehicleManager, defaultSpawns } from './vehicles/vehicleManager';
 import { ChunkManager } from './world/chunks';
 import { createStaticColliders } from './world/colliders';
+import { resolveLandmarks, type Landmark } from './world/landmarks';
 import { DISTRICT_NAMES, districtAt } from './world/layout';
-import { RUNWAYS } from './world/structures';
+import { Life } from './world/life/life';
 import { Turbines } from './world/turbines';
 import { Water } from './world/water';
 import { generateWorld } from './world/world';
 import type { WorldData } from './world/worldData';
 
 type Progress = (p: number, text: string) => void;
+type Mode = 'play' | 'map' | 'photo';
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 const QUALITIES: QualityName[] = ['low', 'medium', 'high', 'ultra'];
-
-interface SoundParams {
-  rpm: number;
-  load: number;
-  speed: number;
-  horn: boolean;
-  stall: boolean;
-  rain: number;
-  cityLevel: number;
-  altitude: number;
-}
 
 export class Game {
   private loop!: GameLoop;
   private r!: Renderer;
   private atmos!: Atmosphere;
+  private weather!: Weather;
   private mats!: Materials;
   private world!: WorldData;
   private chunks!: ChunkManager;
   private water!: Water;
   private turbines!: Turbines;
+  private life!: Life;
   private physics!: Physics;
   private input!: InputManager;
   private vehicles!: VehicleManager;
   private player!: PlayerController;
-  private readonly freeCam = new FreeCam();
-  private freeCamOn = false;
+  private landmarks!: Landmark[];
+  private vision!: ArchitectVision;
+  private hud!: GameHud;
+  private gameAudio!: GameAudio;
+  private map!: MapScreen;
+  private photo!: PhotoMode;
   private perf!: PerfOverlay;
-  private hud!: Hud;
-  private flightHud!: FlightHud;
   private padTest!: GamepadTest;
-  private sound!: VehicleSound;
+  private mode: Mode = 'play';
   private q: QualityPreset = PRESETS[settings.quality];
   private statusTimer = 0;
   private status = '';
-  private readonly waypoint = new THREE.Vector3();
-  private waypointLabel = '';
-  private readonly soundParams: SoundParams = {
-    rpm: 0,
-    load: 0,
-    speed: 0,
-    horn: false,
-    stall: false,
-    rain: 0,
-    cityLevel: 1,
-    altitude: 0,
-  };
+  private readonly vehiclePos = new THREE.Vector3();
 
   private constructor() {}
 
@@ -92,42 +78,71 @@ export class Game {
     g.r = new Renderer(canvas);
     g.atmos = new Atmosphere(g.r.renderer, g.r.scene);
     g.r.setSunMesh(g.atmos.sunMesh);
+    g.weather = new Weather(g.r.scene);
     progress(0.06, 'Generating terrain, roads and city plan');
     await tick();
     g.world = generateWorld();
-    progress(0.3, 'Building colliders');
+    progress(0.25, 'Building colliders');
     await tick();
     createStaticColliders(g.physics, g.world);
     g.mats = new Materials();
     g.chunks = new ChunkManager(g.world, g.mats);
     g.r.scene.add(g.chunks.root);
     for (const p of g.chunks.prebuild()) {
-      progress(0.35 + p * 0.5, 'Streaming districts');
+      progress(0.3 + p * 0.45, 'Streaming districts');
       await tick();
     }
     g.water = new Water(g.r.scene);
     g.turbines = new Turbines(g.world.turbines, g.mats);
     g.r.scene.add(g.turbines.group);
-    progress(0.88, 'Parking vehicles');
+    g.landmarks = resolveLandmarks(g.world, g.turbines.centroid());
+    progress(0.78, 'Bringing the city to life');
     await tick();
+    g.life = new Life(g.world, g.physics, g.mats);
+    g.r.scene.add(g.life.group);
     g.vehicles = new VehicleManager(g.physics, g.mats, g.world);
     for (const s of defaultSpawns(g.world)) g.vehicles.spawn(s);
     g.r.scene.add(g.vehicles.group);
     g.player = new PlayerController(g.physics, g.mats, g.r.camera, g.vehicles, g.world, g.r.scene);
     g.player.placeOnFoot(80, 78, 0);
+    progress(0.86, 'Drawing the map');
+    await tick();
     g.input = new InputManager(canvas);
     new Toasts(ui);
-    g.hud = new Hud(ui);
-    g.flightHud = new FlightHud(ui);
+    const mapImage = renderWorldMap(g.world);
+    g.hud = new GameHud(ui, mapImage, g.world, g.landmarks, g.mats, g.r.scene);
+    g.map = new MapScreen(ui, mapImage, g.world, g.landmarks);
+    g.map.onClose = () => {
+      g.hud.setWaypoint(g.map.waypoint);
+      g.mode = 'play';
+    };
+    g.photo = new PhotoMode(ui, g.r, g.atmos, g.landmarks, (x, z) => g.world.terrain.heightAt(x, z));
+    g.photo.onExit = () => {
+      g.mode = 'play';
+      g.hud.setVisible(true);
+    };
+    g.vision = new ArchitectVision(g.world, g.chunks, g.r.scene, ui);
+    g.gameAudio = new GameAudio(g.weather);
     g.perf = new PerfOverlay(ui);
     g.padTest = new GamepadTest(ui);
-    g.sound = new VehicleSound(audio);
     if (settings.showFps) g.perf.toggle();
     g.applyQuality(settings.quality, false);
+    g.hookEvents(canvas);
+    progress(0.95, 'Warming up');
+    await tick();
+    g.chunks.warm(g.player.pos.set(80, 2, 78), g.q);
+    g.loop = new GameLoop({ fixed: (dt) => g.fixed(dt), frame: (dt, a) => g.frame(dt, a) });
+    if (import.meta.env.DEV) {
+      (window as unknown as { __flux: unknown }).__flux = { game: g, player: g.player, vehicles: g.vehicles };
+    }
+    return g;
+  }
+
+  private hookEvents(canvas: HTMLCanvasElement): void {
     const unlock = (): void => audio.unlock();
     canvas.addEventListener('click', () => {
       unlock();
-      g.input.requestPointerLock();
+      if (this.mode === 'play') this.input.requestPointerLock();
     });
     window.addEventListener('keydown', unlock);
     events.on('touchdown', ({ verticalSpeed, centreline, score, onRunway }) => {
@@ -138,16 +153,10 @@ export class Game {
       });
     });
     events.on('vehicleEntered', () => {
-      const v = g.player.vehicle;
+      const v = this.player.vehicle;
       if (v) events.emit('toast', { text: v.name, ms: 1600 });
     });
-    progress(0.95, 'Warming up');
-    await tick();
-    g.chunks.warm(g.player.pos.set(80, 2, 78), g.q);
-    g.loop = new GameLoop({ fixed: (dt) => g.fixed(dt), frame: (dt, a) => g.frame(dt, a) });
-    if (import.meta.env.DEV)
-      (window as unknown as { __flux: unknown }).__flux = { game: g, player: g.player, vehicles: g.vehicles };
-    return g;
+    events.on('landmarkDiscovered', () => audio.chime());
   }
 
   private applyQuality(name: QualityName, announce = true): void {
@@ -157,35 +166,73 @@ export class Game {
     this.r.applyQuality(this.q);
     this.atmos.configureShadows(this.q.shadows, this.q.shadowMapSize, this.q.shadowRange);
     this.water.reflections = this.q.waterReflections;
+    this.life.setDensity(this.q.density);
     if (announce) events.emit('toast', { text: `Quality: ${this.q.label}` });
   }
 
   private fixed(dt: number): void {
-    const input = this.freeCamOn || this.padTest.visible ? null : this.input;
+    if (this.mode !== 'play') return; // map and photo mode pause the simulation
+    const input = this.padTest.visible ? null : this.input;
     this.player.fixed(dt, input);
     this.vehicles.fixed(dt, this.player.vehicle, input);
+    const v = this.player.vehicle;
+    if (v) {
+      const t = v.body.translation();
+      this.vehiclePos.set(t.x, t.y, t.z);
+    }
+    this.life.fixed(dt, this.player.pos, v ? this.vehiclePos : null, this.atmos.night);
     this.physics.step();
   }
 
   private debugInput(dt: number): void {
     const input = this.input;
-    if (input.pressed('padTest') || (this.player.mode !== 'air' && input.pressed('vision')))
-      this.padTest.toggle();
+    if (input.pressed('padTest')) this.padTest.toggle();
     if (input.perfToggled) this.perf.toggle();
     if (input.pressed('debugQuality')) {
       const i = QUALITIES.indexOf(this.q.name);
       this.applyQuality(QUALITIES[(i + 1) % QUALITIES.length]);
     }
+    if (input.pressed('debugWeather')) {
+      const next = WEATHER_TYPES[(WEATHER_TYPES.indexOf(this.weather.type) + 1) % WEATHER_TYPES.length];
+      this.weather.set(next);
+      events.emit('toast', { text: `Weather: ${next}` });
+    }
     const scrub = input.value('debugTimeFwd') - input.value('debugTimeBack');
     if (scrub !== 0) this.atmos.time = (this.atmos.time + scrub * dt * 3 + 24) % 24;
-    if (this.player.mode === 'foot' && input.pressed('photo')) {
-      this.freeCamOn = !this.freeCamOn;
-      if (this.freeCamOn) this.freeCam.fromCamera(this.r.camera);
-      events.emit('toast', {
-        text: this.freeCamOn ? 'Free camera (P / R3 to return)' : 'Back to player',
-        ms: 1400,
-      });
+  }
+
+  /** Gameplay input that opens screens or toggles overlays. */
+  private playInput(): void {
+    const input = this.input;
+    const p = this.player;
+    if (input.pressed('map')) {
+      this.mode = 'map';
+      this.input.exitPointerLock();
+      this.map.waypoint = this.hud.waypoint;
+      this.map.show(p.pos.x, p.pos.z, p.heading());
+      return;
     }
+    // R3 is photo mode on foot and look-back in vehicles; P always opens photo mode.
+    if (input.pressed('photo') && (p.mode === 'foot' || input.device === 'keyboard')) {
+      this.mode = 'photo';
+      this.hud.setVisible(false);
+      this.photo.enter();
+      return;
+    }
+    if (input.pressed('vision')) {
+      if (p.mode === 'air') events.emit('toast', { text: `HUD: ${this.hud.flight.cycle()}`, ms: 900 });
+      else
+        events.emit('toast', {
+          text: this.vision.toggle() ? 'Architect Vision on' : 'Architect Vision off',
+          ms: 1200,
+        });
+    }
+    if (input.pressed('radio') && p.mode !== 'foot') this.gameAudio.cycleRadio();
+    if (p.mode !== 'air') {
+      if (input.pressed('mapZoomIn')) this.hud.minimap.zoom(1);
+      if (input.pressed('mapZoomOut')) this.hud.minimap.zoom(-1);
+    }
+    p.frameInput(input);
   }
 
   private frame(dt: number, alpha: number): void {
@@ -194,25 +241,26 @@ export class Game {
     if (input.padConnected && input.device !== 'keyboard') audio.unlock();
     this.debugInput(dt);
     this.padTest.update(input);
-    const blocked = this.freeCamOn || this.padTest.visible;
-    if (!blocked) {
-      this.player.frameInput(input);
-      if (this.player.mode === 'air' && input.pressed('vision')) {
-        events.emit('toast', { text: `HUD: ${this.flightHud.cycle()}`, ms: 900 });
-      }
-    }
-    this.vehicles.render(alpha, dt);
-    if (this.freeCamOn) {
-      this.freeCam.update(dt, input, this.r.camera, (x, z) => this.world.terrain.heightAt(x, z));
-      this.player.character.render(alpha, dt);
-    } else this.player.frame(dt, alpha, blocked ? this.idleInput() : input);
+    const blocked = this.padTest.visible;
+    if (this.mode === 'play' && !blocked) this.playInput();
+    else if (this.mode === 'map') this.map.update(dt, input);
+    else if (this.mode === 'photo') this.photo.update(input);
+
+    if (this.mode === 'play') {
+      this.vehicles.render(alpha, dt);
+      this.player.frame(dt, alpha, input);
+      this.life.frame(dt, this.player.pos);
+    } else if (this.mode === 'photo') this.photo.frame(dt, input);
 
     const camPos = this.r.camera.position;
-    const frozen = input.isDown('debugTimeFwd') || input.isDown('debugTimeBack');
-    this.atmos.update(dt, settings.dayLengthMinutes, this.player.pos, frozen);
+    const frozen = this.mode !== 'play' || input.isDown('debugTimeFwd') || input.isDown('debugTimeBack');
+    this.atmos.update(this.mode === 'map' ? 0 : dt, settings.dayLengthMinutes, this.player.pos, frozen);
+    this.weather.update(dt, camPos, this.atmos, this.mats);
+    this.vehicles.wind.copy(this.weather.wind);
     this.mats.setNight(this.atmos.night);
+    this.vision.update(this.r.camera, this.player.pos, this.atmos.time);
     this.chunks.update(camPos, this.q, 5);
-    this.turbines.update(dt, 6);
+    this.turbines.update(dt, this.weather.windSpeed);
     this.water.update(
       dt,
       this.r.renderer,
@@ -222,101 +270,25 @@ export class Game {
       this.atmos.sun.color,
       this.atmos.fog,
       this.atmos.night,
-      0,
+      this.weather.rain,
     );
-    this.updateAudio(dt);
-    this.updateHud(dt);
+    this.gameAudio.update(dt, this.player, this.weather, this.world, this.mode !== 'play');
+    this.updateStatus(dt);
+    if (this.mode === 'play') this.hud.update(dt, input, this.player, this.r.camera, this.status);
     this.r.render(dt);
-    this.perf.update(
-      dt,
-      this.loop.fps,
-      this.loop.frameMs,
-      this.r.renderer,
-      `Chunks shown ${this.chunks.meshCount()} · built ${this.chunks.builtThisFrame}`,
-    );
+    const extra = `Chunks shown ${this.chunks.meshCount()} · built ${this.chunks.builtThisFrame}\nTraffic ${this.life.traffic.activeCount}`;
+    this.perf.update(dt, this.loop.fps, this.loop.frameMs, this.r.renderer, extra);
   }
 
-  /** An input view that reads nothing (while overlays own the controls). */
-  private idleInput(): InputManager {
-    this.input.mouse.x = 0;
-    this.input.mouse.y = 0;
-    return this.input;
-  }
-
-  private updateAudio(dt: number): void {
-    const v = this.player.vehicle;
-    const p = this.soundParams;
-    let voice: EngineVoice = 'none';
-    p.horn = false;
-    p.stall = false;
-    if (v instanceof Car) {
-      voice = v.def.engineVoice;
-      const t = v.telemetry();
-      p.rpm = t.rpm;
-      p.load = t.throttle;
-      p.horn = v.horn;
-    } else if (v instanceof Aircraft) {
-      voice = v.kind === 'jet' ? 'jet' : v.kind === 'vtol' ? 'rotor' : 'prop';
-      p.load = v.data.throttle;
-      p.stall = v.data.stall;
-    }
-    if (this.player.impact > 0) {
-      audio.impact(this.player.impact);
-      this.player.impact = 0;
-    }
-    this.sound.voice = voice;
-    p.speed = this.player.speed();
-    p.altitude = this.player.pos.y - this.world.terrain.heightAt(this.player.pos.x, this.player.pos.z);
-    this.sound.update(dt, p);
-  }
-
-  private updateHud(dt: number): void {
-    const v = this.player.vehicle;
+  private updateStatus(dt: number): void {
     this.statusTimer -= dt;
-    if (this.statusTimer <= 0) {
-      this.statusTimer = 0.5;
-      const h = Math.floor(this.atmos.time);
-      const m = Math.floor((this.atmos.time - h) * 60);
-      const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      const pos = this.player.pos;
-      this.status = `${DISTRICT_NAMES[districtAt(pos.x, pos.z)]} · ${clock} · ${this.q.label} · F1 pad test · F2 quality · [ ] time`;
-    }
-    this.hud.setVisible(!this.freeCamOn);
-    this.hud.update(this.input, this.player.mode, this.player.candidate, v, this.status);
-    if (v instanceof Aircraft && !this.freeCamOn) {
-      this.pickWaypoint(v);
-      this.flightHud.draw(dt, v.data, this.r.camera, this.waypoint, this.waypointLabel, v.kind);
-    } else this.flightHud.hide();
-  }
-
-  /** VTOL: nearest vertiport. Fixed-wing: nearest runway threshold. */
-  private pickWaypoint(v: Aircraft): void {
-    const p = this.player.pos;
-    let best = Infinity;
-    if (v.kind === 'vtol') {
-      for (const vp of this.world.vertiports) {
-        const d = Math.hypot(vp.x - p.x, vp.z - p.z);
-        if (d < best && d > 40) {
-          best = d;
-          this.waypoint.set(vp.x, vp.y, vp.z);
-          this.waypointLabel = vp.name;
-        }
-      }
-      return;
-    }
-    for (const r of RUNWAYS) {
-      for (const [z, name] of [
-        [r.z1, r.name.split(' / ')[0]],
-        [r.z0, r.name.split(' / ')[1]],
-      ] as const) {
-        const d = Math.hypot(r.x - p.x, z - p.z);
-        if (d < best && d > 300) {
-          best = d;
-          this.waypoint.set(r.x, 2, z);
-          this.waypointLabel = `RWY ${name}`;
-        }
-      }
-    }
+    if (this.statusTimer > 0) return;
+    this.statusTimer = 0.5;
+    const h = Math.floor(this.atmos.time);
+    const m = Math.floor((this.atmos.time - h) * 60);
+    const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const pos = this.player.pos;
+    this.status = `${DISTRICT_NAMES[districtAt(pos.x, pos.z)]} · ${clock} · ${this.weather.type} · ${this.q.label} · F1 pad test · F2 quality · F4 weather · [ ] time`;
   }
 
   start(): void {

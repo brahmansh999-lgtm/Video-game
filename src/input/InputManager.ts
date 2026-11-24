@@ -8,6 +8,7 @@ import { setRumblePad } from './rumble';
 const N = ACTIONS.length;
 const INDEX = new Map<Action, number>(ACTIONS.map((a, i) => [a, i]));
 const UI_DIRS: Action[] = ['uiUp', 'uiDown', 'uiLeft', 'uiRight'];
+const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
 export interface Stick {
   x: number;
@@ -35,6 +36,8 @@ export class InputManager {
   private capture: CaptureFn | null = null;
   private repeatTimer = new Float32Array(4);
   private navPulse = new Uint8Array(4);
+  private strictTimer = new Float32Array(4);
+  private strictPulse = new Uint8Array(4);
 
   /** Left stick / WASD, y positive = forward/up. */
   readonly move: Stick = { x: 0, y: 0 };
@@ -124,6 +127,7 @@ export class InputManager {
       e.code === 'F3' ||
       e.code === 'F1' ||
       e.code === 'F2' ||
+      e.code === 'F4' ||
       e.code.startsWith('Arrow')
     )
       e.preventDefault();
@@ -264,26 +268,15 @@ export class InputManager {
         this.padButtons[PAD.R3] > 0.5 &&
         (this.padPrev[PAD.L3] <= 0.5 || this.padPrev[PAD.R3] <= 0.5));
 
-    // UI navigation with auto-repeat (D-pad, arrows or left stick).
+    // UI navigation with auto-repeat (D-pad, arrows or left stick), and a strict variant
+    // (D-pad / arrow keys only) for screens where sticks and WASD drive something else.
     for (let d = 0; d < 4; d++) {
       let held = this.isDown(UI_DIRS[d]);
-      if (!held && pad) {
-        const sx = lx;
-        const sy = ly;
-        held = d === 0 ? sy < -0.6 : d === 1 ? sy > 0.6 : d === 2 ? sx < -0.6 : sx > 0.6;
-      }
-      this.navPulse[d] = 0;
-      if (!held) {
-        this.repeatTimer[d] = 0;
-        continue;
-      }
-      if (this.repeatTimer[d] === 0) this.navPulse[d] = 1;
-      this.repeatTimer[d] += dt;
-      if (this.repeatTimer[d] > 0.42) {
-        this.navPulse[d] = 1;
-        this.repeatTimer[d] = 0.42 - 0.11;
-      }
-      if (this.repeatTimer[d] === 0) this.repeatTimer[d] = 0.0001;
+      if (!held && pad) held = d === 0 ? ly < -0.6 : d === 1 ? ly > 0.6 : d === 2 ? lx < -0.6 : lx > 0.6;
+      this.navPulse[d] = this.repeat(held, d, this.repeatTimer, dt);
+      const strict =
+        this.padButtons[PAD.UP + d] > 0.5 || this.keysDown.has(ARROWS[d]) || this.keysPressed.has(ARROWS[d]);
+      this.strictPulse[d] = this.repeat(strict, d, this.strictTimer, dt);
     }
     this.keysPressed.clear();
   }
@@ -308,8 +301,23 @@ export class InputManager {
   }
 
   /** UI navigation pulse: 0 up, 1 down, 2 left, 3 right. */
-  nav(dir: 0 | 1 | 2 | 3): boolean {
-    return this.navPulse[dir] === 1;
+  private repeat(held: boolean, d: number, timer: Float32Array, dt: number): number {
+    if (!held) {
+      timer[d] = 0;
+      return 0;
+    }
+    let pulse = timer[d] === 0 ? 1 : 0;
+    timer[d] += dt;
+    if (timer[d] > 0.42) {
+      pulse = 1;
+      timer[d] = 0.42 - 0.11;
+    }
+    return pulse;
+  }
+
+  /** UI navigation pulse: 0 up, 1 down, 2 left, 3 right. strict = D-pad / arrow keys only. */
+  nav(dir: 0 | 1 | 2 | 3, strict = false): boolean {
+    return (strict ? this.strictPulse : this.navPulse)[dir] === 1;
   }
 
   padButton(i: number): number {

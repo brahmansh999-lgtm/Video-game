@@ -5,9 +5,12 @@ parametric buildings, generated deterministically from a seed, built with Vite, 
 three.js, Rapier and postprocessing. Every asset is procedural — no downloaded models,
 textures or audio.
 
-**Status: phases 1–4 of 8 complete.** Explore on foot, drive three classes of car and fly three
-aircraft (light sports plane, jet, VTOL air taxi) with a full aerodynamic model and flight HUD.
-Traffic, pedestrians, weather, missions and menus arrive in later phases.
+**Status: phases 1–6 of 8 complete.** Explore on foot, drive three classes of car and fly three
+aircraft (light sports plane, jet, VTOL air taxi) with a full aerodynamic model, through a living
+city: lane-following traffic, pedestrians, drones and air taxis, maglev trains on a timetable,
+day/night and weather (clear, overcast, rain, storm with lightning). Architect Vision, the
+Landmark Codex, photo mode, a rotating minimap and a full-screen map are in. Missions, menus
+and settings arrive in phases 7–8.
 
 ## Run
 
@@ -38,11 +41,28 @@ Keyboard/mouse and controller work interchangeably; prompts follow the last-used
 | X / □ | — | — | VTOL hover ⇄ cruise | X |
 | Y / △ | Enter vehicle (within 3 m) | Exit | Exit (landed and stopped) | F |
 | D-pad up | — | — | Camera: chase / cockpit / wing / orbit | V |
-| View / Share | Controller test | Controller test | HUD: full / minimal / off | C |
-| R3 | Free camera | Look back | Look back | P / B |
+| View / Share | Architect Vision | Architect Vision | HUD: full / minimal / off | C |
+| R3 | Photo mode | Look back | Look back | P (photo) / B (look back) |
+| D-pad up / down | Minimap zoom | Minimap zoom | (up: camera mode) | + / - |
+| D-pad left / right | — | Radio station | Radio station | N |
+| Full map + Landmark Codex | Tab / M | Tab / M | Tab / M | Tab / M |
 | L3 + R3 | Performance overlay | | | F3 |
 
-Debug keys: F1 controller test, F2 cycle quality preset, `[` / `]` scrub time of day.
+Debug keys: F1 controller test, F2 cycle quality preset, F4 cycle weather, `[` / `]` scrub time of day.
+
+**Map:** pan with the left stick / WASD / mouse drag, zoom with the triggers / wheel, A / Enter or
+click sets a waypoint (shown on the minimap, as a light beam in the world and on the flight HUD),
+X clears it, LB / RB (Q / E) switch to the Landmark Codex.
+
+**Photo mode** pauses the world. Fly the camera with the sticks / WASD + mouse (triggers or R / F
+for height); the side panel is driven with the D-pad / arrow keys: field of view, depth of field,
+focus distance, blur, time of day, filter, capture and PNG export. X hides the panel.
+
+**Landmark Codex:** 20 fictional landmarks. Photograph one (in frame, within range) to unlock its
+card — typology, height, structural system and design concept. Discoveries are saved.
+
+**Architect Vision** swaps materials (no geometry rebuild) to a blueprint rendering with structure
+highlighted, and overlays building heights, district boundaries and the day's sun-path arc.
 
 ## Flight model
 
@@ -87,7 +107,9 @@ src/
   player/                 character controller, procedural figure, camera rig, player state machine
   vehicles/               cars (Rapier ray-cast vehicle), aircraft, flightModel.ts, landing gear
   audio/                  WebAudio engine: synthesized engines, wind, horn, stall warning
-  ui/                     HUD, flight HUD, toasts, perf overlay, controller test
+  world/life/             traffic, pedestrians, drones / air taxis, maglev trains (all pooled)
+  ui/                     HUD, flight HUD, minimap, map + codex, photo mode, menu framework,
+                          toasts, perf overlay, controller test
 ```
 
 **World.** Six districts — Flux Core, Ribbon Waterfront, Canopy Gardens, Maglev Ring,
@@ -101,3 +123,12 @@ render trimesh.
 **Rendering budget.** All facade styles share one atlas material so each chunk costs a single
 facade draw call; structural members and trees are instanced. Measured in the densest district
 (Flux Core): ~200 draw calls and ~270k triangles on High, ~280 calls on Ultra at night.
+
+**Trade-offs so far**
+
+- The minimap and map are drawn once from the world data into a cached 1024² canvas instead of
+  an orthographic GPU render per chunk: same information, zero draw calls.
+- Distant (LOD2) chunks are flat-coloured, so far towers don't show lit windows at night.
+- Traffic and pedestrians are updated on the 60 Hz physics step without render interpolation.
+- Fog is distance-based rather than true height fog.
+- Street-level props (lamps, signs) have no colliders.

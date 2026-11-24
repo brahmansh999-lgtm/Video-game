@@ -92,13 +92,14 @@ export class Hud {
       lines = [
         `${stick('L', 'WASD')} move &nbsp; ${stick('R', 'Mouse')} camera`,
         `${g('sprint')} sprint &nbsp; ${g('jump')} jump &nbsp; ${g('aim')} focus`,
-        `${g('enterExit')} enter vehicle &nbsp; ${g('photo')} free camera`,
+        `${g('enterExit')} enter vehicle &nbsp; ${g('vision')} Architect Vision`,
+        `${g('map')} map &amp; codex &nbsp; ${g('photo')} photo mode`,
       ];
     } else if (mode === 'car') {
       lines = [
         `${g('accelerate')} accelerate &nbsp; ${g('brake')} brake / reverse &nbsp; ${stick('L', 'A/D')} steer`,
         `${g('handbrake')} handbrake &nbsp; ${g('horn')} horn &nbsp; ${g('lookBack')} look back`,
-        `${g('enterExit')} exit`,
+        `${g('enterExit')} exit &nbsp; ${g('radio')} radio &nbsp; ${g('vision')} Architect Vision &nbsp; ${g('map')} map`,
       ];
     } else {
       lines = [
