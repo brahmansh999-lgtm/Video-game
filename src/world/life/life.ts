@@ -28,6 +28,7 @@ export class Life {
     this.group.add(
       this.traffic.mesh,
       this.traffic.lights,
+      this.traffic.tails,
       this.peds.group,
       this.drones.group,
       this.maglev.mesh,

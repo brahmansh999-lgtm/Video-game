@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { GROUP_TRAFFIC, RAPIER, type Physics } from '../../core/physics';
 import { mulberry32 } from '../../core/rng';
 import type { Materials } from '../../render/materials';
-import { MeshBuilder } from '../architecture/meshBuilder';
+import { CARS } from '../../vehicles/carDefs';
+import { carShapes, wheelGeometry, wheelRestY } from '../../vehicles/meshes';
+import { merge, tint } from '../../vehicles/shapes';
 import type { RoadGraph } from '../roads';
 import type { Terrain } from '../terrain';
 
@@ -39,26 +41,34 @@ interface Agent {
   body: RAPIER.RigidBody;
 }
 
+/** Traffic cars share the EV body; it is lifted so the tyres sit on the road (y = 0). */
+const TRAFFIC_DEF = CARS.ev;
+const LIFT = -(wheelRestY(TRAFFIC_DEF) - TRAFFIC_DEF.wheelRadius);
+
+/** Body, glass, trim and wheels in one vertex-coloured mesh; paint is white so the instance colour shows. */
 function carGeometry(): THREE.BufferGeometry {
-  const b = new MeshBuilder({ color: true });
-  b.setColor(0xffffff).box(0, 0.55, 0, 0.9, 0.35, 2.1);
-  b.setColor(0x9aa6b0).box(0, 1.15, 0.2, 0.8, 0.28, 1.15);
-  b.setColor(0x222222);
-  for (const [x, z] of [
-    [-0.85, -1.35],
-    [0.85, -1.35],
-    [-0.85, 1.35],
-    [0.85, 1.35],
-  ])
-    b.box(x, 0.33, z, 0.12, 0.33, 0.33);
-  const g = b.toGeometry();
-  if (!g) throw new Error('traffic geometry');
-  return g;
+  const s = carShapes(TRAFFIC_DEF);
+  const wy = wheelRestY(TRAFFIC_DEF);
+  const wheel = wheelGeometry(TRAFFIC_DEF.wheelRadius);
+  const wheels: THREE.BufferGeometry[] = [];
+  for (const x of [-1, 1])
+    for (const z of [-TRAFFIC_DEF.wheelZ, TRAFFIC_DEF.wheelZ])
+      wheels.push(wheel.clone().translate(x * (TRAFFIC_DEF.wheelX + 0.05), wy, z));
+  // vertex colours multiply the instance colour: dark parts stay dark on any paint
+  return merge([
+    ...s.paint.map((g) => tint(g, 0xffffff)),
+    ...s.glass.map((g) => tint(g, 0x1a1f26)),
+    ...s.trim.map((g) => tint(g, 0x18181a)),
+    ...s.chrome.map((g) => tint(g, 0x9a9da2)),
+    ...s.plate.map((g) => tint(g, 0xe0e0e0)),
+    ...wheels.map((g) => g.clone()),
+  ]).translate(0, LIFT, 0);
 }
 
 export class Traffic {
   readonly mesh: THREE.InstancedMesh;
   readonly lights: THREE.InstancedMesh;
+  readonly tails: THREE.InstancedMesh;
   private readonly agents: Agent[] = [];
   private readonly rnd = mulberry32(99);
   private readonly m = new THREE.Matrix4();
@@ -82,9 +92,12 @@ export class Traffic {
     this.mesh = new THREE.InstancedMesh(carGeometry(), mat, MAX_TRAFFIC);
     this.mesh.castShadow = true;
     this.mesh.frustumCulled = false;
-    const lg = new THREE.BoxGeometry(1.5, 0.12, 4.3).translate(0, 0.62, 0);
-    this.lights = new THREE.InstancedMesh(lg, mats.lightLamp, MAX_TRAFFIC);
+    // headlights and tail lights as separate emissive instances
+    const ls = carShapes(TRAFFIC_DEF);
+    this.lights = new THREE.InstancedMesh(merge(ls.lamp).translate(0, LIFT, 0), mats.lightLamp, MAX_TRAFFIC);
     this.lights.frustumCulled = false;
+    this.tails = new THREE.InstancedMesh(merge(ls.tail).translate(0, LIFT, 0), mats.redLight, MAX_TRAFFIC);
+    this.tails.frustumCulled = false;
     const palette = TRAFFIC_PAINTS;
     for (let i = 0; i < MAX_TRAFFIC; i++) {
       const body = phys.world.createRigidBody(
@@ -114,6 +127,7 @@ export class Traffic {
       this.m.makeTranslation(0, -1000, 0);
       this.mesh.setMatrixAt(i, this.m);
       this.lights.setMatrixAt(i, this.m);
+      this.tails.setMatrixAt(i, this.m);
     }
   }
 
@@ -203,13 +217,15 @@ export class Traffic {
     this.m.makeTranslation(0, -1000, 0);
     this.mesh.setMatrixAt(i, this.m);
     this.lights.setMatrixAt(i, this.m);
+    this.tails.setMatrixAt(i, this.m);
     this.mesh.instanceMatrix.needsUpdate = true;
     this.lights.instanceMatrix.needsUpdate = true;
+    this.tails.instanceMatrix.needsUpdate = true;
     return out;
   }
 
   /** obstacles: positions the cars should not drive into (player, player vehicle). */
-  fixed(dt: number, focus: THREE.Vector3, obstacles: THREE.Vector3[], night: number): void {
+  fixed(dt: number, focus: THREE.Vector3, obstacles: THREE.Vector3[], _night: number): void {
     const want = Math.floor(MAX_TRAFFIC * this.density);
     this.activeCount = 0;
     for (let i = 0; i < this.agents.length; i++) {
@@ -227,6 +243,7 @@ export class Traffic {
         this.m.makeTranslation(0, -1000, 0);
         this.mesh.setMatrixAt(i, this.m);
         this.lights.setMatrixAt(i, this.m);
+        this.tails.setMatrixAt(i, this.m);
         continue;
       }
       this.activeCount++;
@@ -282,13 +299,12 @@ export class Traffic {
       this.p.set(a.x, a.y, a.z);
       this.m.compose(this.p, this.q, this.s);
       this.mesh.setMatrixAt(i, this.m);
-      if (night > 0.3) this.lights.setMatrixAt(i, this.m);
-      else {
-        this.m.makeTranslation(0, -1000, 0);
-        this.lights.setMatrixAt(i, this.m);
-      }
+      // lamps are always placed: their emissive strength already follows the time of day
+      this.lights.setMatrixAt(i, this.m);
+      this.tails.setMatrixAt(i, this.m);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.lights.instanceMatrix.needsUpdate = true;
+    this.tails.instanceMatrix.needsUpdate = true;
   }
 }

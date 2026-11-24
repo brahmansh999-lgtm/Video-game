@@ -143,10 +143,10 @@ export class Atmosphere {
     const warm = smoothstep(2, 25, elevDeg);
     if (moon) this.sun.color.setRGB(0.55, 0.65, 1);
     else this.sun.color.setRGB(1, lerp(0.62, 0.97, warm), lerp(0.38, 0.92, warm));
-    this.sun.intensity = moon ? 0.3 * (1 - cloud * 0.7) : day * lerp(0.5, 2.6, warm) * (1 - cloud * 0.75);
-    this.hemi.intensity = lerp(0.17, 0.5, day) * (1 - cloud * 0.25) + cloud * 0.3 * day + this.flash * 3;
-    this.hemi.color.setRGB(lerp(0.25, 0.75, day), lerp(0.3, 0.85, day), lerp(0.5, 1, day));
-    this.hemi.groundColor.setRGB(0.3 * day + 0.05, 0.27 * day + 0.05, 0.22 * day + 0.07);
+    this.sun.intensity = moon ? 0.95 * (1 - cloud * 0.55) : day * lerp(0.5, 2.6, warm) * (1 - cloud * 0.75);
+    this.hemi.intensity = lerp(0.68, 0.5, day) * (1 - cloud * 0.2) + cloud * 0.3 * day + this.flash * 3;
+    this.hemi.color.setRGB(lerp(0.42, 0.75, day), lerp(0.48, 0.85, day), lerp(0.72, 1, day));
+    this.hemi.groundColor.setRGB(0.22 * day + 0.13, 0.19 * day + 0.12, 0.13 * day + 0.14);
 
     this.shadowTarget.position.copy(focus);
     this.sun.position.copy(focus).addScaledVector(lightDir, 800);
@@ -163,9 +163,9 @@ export class Atmosphere {
     fogDay.g += sunset * 0.05;
     fogDay.b -= sunset * 0.15;
     this.fog.color.setRGB(
-      lerp(fogDay.r, 0.035, this.night),
-      lerp(fogDay.g, 0.045, this.night),
-      lerp(fogDay.b, 0.075, this.night),
+      lerp(fogDay.r, 0.075, this.night),
+      lerp(fogDay.g, 0.09, this.night),
+      lerp(fogDay.b, 0.14, this.night),
     );
     this.fog.density = 0.00016 + cloud * 0.00045 + this.fogBoost;
 
@@ -176,7 +176,7 @@ export class Atmosphere {
 
     this.sunMesh.position.copy(focus).addScaledVector(this.sunDir, 5000);
     this.sunMesh.visible = !moon;
-    this.renderer.toneMappingExposure = lerp(0.55, 0.5, this.night);
+    this.renderer.toneMappingExposure = lerp(0.55, 0.75, this.night);
 
     // Re-render the environment map when lighting changed noticeably.
     this.envTimer -= dt;
@@ -212,6 +212,6 @@ export class Atmosphere {
     this.envRT?.dispose();
     this.envRT = rt;
     this.scene.environment = rt.texture;
-    this.scene.environmentIntensity = lerp(0.13, 0.03, this.night);
+    this.scene.environmentIntensity = lerp(0.13, 0.1, this.night);
   }
 }

@@ -12,7 +12,7 @@ import { waterLevelAt } from '../world/layout';
 import { AIRCRAFT, type AircraftDef, type AircraftKind } from './aircraftDefs';
 import { LandingGear } from './aircraftGear';
 import { computeAero, newAeroResult, type AeroControls, type AeroState } from './flightModel';
-import { buildAircraftMesh, type AircraftVisual } from './meshes';
+import { buildAircraftMesh, type AircraftVisual } from './aircraftMeshes';
 import { BodyInterp, yawQuat, type Telemetry, type Vehicle } from './vehicle';
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -104,6 +104,7 @@ export class Aircraft implements Vehicle {
   private hoverTargetAlt = 0;
   private hoverYaw = 0;
   private propAngle = 0;
+  private strobeT = 0;
   private gearAnim = 1;
   private readonly yawQ = new THREE.Quaternion();
   private readonly invYawQ = new THREE.Quaternion();
@@ -409,6 +410,10 @@ export class Aircraft implements Vehicle {
     this.propAngle += dt * (5 + fd.throttle * 60);
     if (this.vis.prop) this.vis.prop.rotation.z = this.propAngle;
     for (const r of this.vis.rotors) r.rotation.x = (-fd.tilt * Math.PI) / 2;
+    // anti-collision strobes: double flash every 1.4 s
+    this.strobeT = (this.strobeT + dt) % 1.4;
+    const on = this.strobeT < 0.06 || (this.strobeT > 0.16 && this.strobeT < 0.22);
+    for (const s of this.vis.strobes) s.visible = on;
   }
 
   telemetry(): Telemetry {

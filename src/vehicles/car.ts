@@ -221,7 +221,8 @@ export class Car implements Vehicle {
       this.vis.wheels.setMatrixAt(i, this.m);
     }
     this.vis.wheels.instanceMatrix.needsUpdate = true;
-    this.vis.brake.visible = this.braking || !this.driven;
+    const tail = this.vis.brake.material as THREE.MeshStandardMaterial;
+    tail.emissiveIntensity = this.braking ? 3.2 : this.driven ? 0.9 : 0.35;
     void dt;
   }
 
