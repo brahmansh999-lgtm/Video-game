@@ -1,7 +1,6 @@
 /** Small always-available overlays: toasts, performance overlay, debug controls hint. */
 import type * as THREE from 'three';
 import { events } from '../core/events';
-import type { InputManager } from '../input/InputManager';
 
 function div(cls: string, parent: HTMLElement): HTMLDivElement {
   const d = document.createElement('div');
@@ -54,30 +53,5 @@ export class PerfOverlay {
       `Geometries ${i.memory.geometries}  Textures ${i.memory.textures}\n` +
       (mem ? `JS heap ${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB\n` : '') +
       extra;
-  }
-}
-
-export class ControlsHint {
-  private readonly root: HTMLDivElement;
-  private lastDevice = '';
-
-  constructor(parent: HTMLElement) {
-    this.root = div('hint', parent);
-  }
-
-  update(input: InputManager, status: string): void {
-    const key = input.device + status;
-    if (key === this.lastDevice) return;
-    this.lastDevice = key;
-    const g = (a: Parameters<InputManager['glyph']>[0]): string => input.glyph(a);
-    const pad = input.device !== 'keyboard';
-    const move = pad ? '<span class="glyph g-pad">L</span>' : '<span class="glyph g-key">WASD</span>';
-    const look = pad ? '<span class="glyph g-pad">R</span>' : '<span class="glyph g-key">Mouse</span>';
-    this.root.innerHTML =
-      `<b>Debug fly camera</b><br>${move} fly &nbsp; ${look} look &nbsp; ${g('sprint')} boost<br>` +
-      `${g('throttleUp')} up &nbsp; ${g('throttleDown')} down<br>` +
-      `${g('yawLeft')}/${g('yawRight')} time of day &nbsp; ${g('cameraMode')} quality<br>` +
-      `${g('vision')} gamepad test &nbsp; ${pad ? '<span class="glyph g-pad">L3+R3</span>' : g('perf')} perf<br>` +
-      `<span class="status">${status}</span>`;
   }
 }

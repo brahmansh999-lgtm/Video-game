@@ -5,8 +5,9 @@ parametric buildings, generated deterministically from a seed, built with Vite, 
 three.js, Rapier and postprocessing. Every asset is procedural — no downloaded models,
 textures or audio.
 
-**Status: phases 1–2 of 8 complete.** The current build is a streamed, explorable city with
-a debug fly camera. Characters, vehicles, flight, missions and the full UI arrive in later phases.
+**Status: phases 1–4 of 8 complete.** Explore on foot, drive three classes of car and fly three
+aircraft (light sports plane, jet, VTOL air taxi) with a full aerodynamic model and flight HUD.
+Traffic, pedestrians, weather, missions and menus arrive in later phases.
 
 ## Run
 
@@ -18,23 +19,48 @@ npm run lint
 npm run build
 ```
 
-Pushing to `main` runs `.github/workflows/deploy.yml` (typecheck → lint → build → GitHub Pages).
+The build uses base `/Video-game/` (GitHub Pages) unless `VERCEL` is set, in which case it is
+served from `/`. Pushing to `main` runs `.github/workflows/deploy.yml` (typecheck → lint → build →
+GitHub Pages) and Vercel redeploys automatically.
 
-## Debug controls (current build)
+## Controls
 
-| Action | Keyboard / mouse | Controller |
-|---|---|---|
-| Fly | WASD | Left stick |
-| Look | Mouse (click to lock pointer) | Right stick |
-| Up / down | R / F | RT / LT |
-| Boost | Shift | B / ○ |
-| Scrub time of day | Q / E | LB / RB |
-| Cycle quality preset | V | D-pad up |
-| Controller test screen | C | View / Share |
-| Performance overlay | F3 | L3 + R3 |
+Keyboard/mouse and controller work interchangeably; prompts follow the last-used device.
 
-Button prompts switch automatically between keyboard, Xbox and PlayStation glyphs based on the
-last-used device.
+| Action | On foot | Car | Aircraft / VTOL | Keyboard |
+|---|---|---|---|---|
+| Left stick | Move | Steer | Roll / pitch | WASD |
+| Right stick | Camera | Camera | Free-look | Mouse (click to lock) |
+| RT / R2 | — | Accelerate | Throttle up | W (car) / R (air) |
+| LT / L2 | Focus | Brake / reverse | Throttle down (at idle: wheel brakes) | S (car) / F (air), RMB focus |
+| LB / RB | — | — | Rudder | Q / E |
+| A / ✕ | Jump | Handbrake | Landing gear | Space / Space / G |
+| B / ○ | Sprint | Horn | Flaps cycle | Shift / H / Z |
+| X / □ | — | — | VTOL hover ⇄ cruise | X |
+| Y / △ | Enter vehicle (within 3 m) | Exit | Exit (landed and stopped) | F |
+| D-pad up | — | — | Camera: chase / cockpit / wing / orbit | V |
+| View / Share | Controller test | Controller test | HUD: full / minimal / off | C |
+| R3 | Free camera | Look back | Look back | P / B |
+| L3 + R3 | Performance overlay | | | F3 |
+
+Debug keys: F1 controller test, F2 cycle quality preset, `[` / `]` scrub time of day.
+
+## Flight model
+
+Per physics step (60 Hz) the aircraft gets lift `L = ½ρV²S·C_L(α)` with a linear lift curve that
+stalls past ~15° AoA and blends into flat-plate behaviour; parasitic + induced drag (reduced in
+ground effect), flap and gear drag; thrust (propeller thrust fades with speed, jet thrust gains
+ram); and pitch/roll/yaw moments from static stability, control surfaces (kept alive at low speed
+by propwash) and rate damping. Post-stall, roll damping collapses and yaw rate drives
+autorotation, so a stall with rudder becomes a spin that is recoverable with opposite rudder and
+forward stick. Landing gear are ray-cast spring/dampers with rolling, braking and lateral tyre
+friction; the nose wheel steers at taxi speed. Touchdowns are scored on vertical speed and
+centreline offset. Crashes (impacts, hard landings, ditching, wingtip strikes) respawn you at the
+runway or the nearest vertiport. The VTOL has an altitude-holding hover mode with attitude
+stabilisation and a gradual tilt transition to wing-borne flight.
+
+Parked aircraft: light plane, jet and VTOL on the Aeroport apron; a VTOL on each of the six
+rooftop vertiports.
 
 ## Quality presets
 
@@ -50,7 +76,7 @@ last-used device.
 ```
 src/
   main.ts                 bootstrap, loading screen, error overlay
-  game.ts                 wires the subsystems together (phase 2: world + fly camera)
+  game.ts                 wires the subsystems together
   core/                   fixed-step loop, events, settings, seeded RNG/noise, Rapier wrapper
   input/                  InputManager, bindings, glyphs, rumble
   render/                 renderer + post FX, sky/day-night, quality presets,
@@ -59,7 +85,10 @@ src/
                           road graph + meshes, city planner, chunk streaming, colliders, water
   world/architecture/     generators: loftTower, diagridSkin, ribbonBuilding, shellCanopy,
                           dome, terrace/block/hangar massing, bridges (cable/arch/catenary)
-  ui/                     toasts, perf overlay, controller test
+  player/                 character controller, procedural figure, camera rig, player state machine
+  vehicles/               cars (Rapier ray-cast vehicle), aircraft, flightModel.ts, landing gear
+  audio/                  WebAudio engine: synthesized engines, wind, horn, stall warning
+  ui/                     HUD, flight HUD, toasts, perf overlay, controller test
 ```
 
 **World.** Six districts — Flux Core, Ribbon Waterfront, Canopy Gardens, Maglev Ring,

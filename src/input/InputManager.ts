@@ -118,7 +118,14 @@ export class InputManager {
       fn('key', e.code);
       return;
     }
-    if (e.code === 'Tab' || e.code === 'Space' || e.code === 'F3' || e.code.startsWith('Arrow'))
+    if (
+      e.code === 'Tab' ||
+      e.code === 'Space' ||
+      e.code === 'F3' ||
+      e.code === 'F1' ||
+      e.code === 'F2' ||
+      e.code.startsWith('Arrow')
+    )
       e.preventDefault();
     if (!e.repeat) this.keysPressed.add(e.code);
     this.keysDown.add(e.code);

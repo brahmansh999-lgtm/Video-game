@@ -61,6 +61,10 @@ export const ACTIONS = [
   'uiTabLeft',
   'uiTabRight',
   'uiAlt',
+  'debugQuality',
+  'debugTimeBack',
+  'debugTimeFwd',
+  'padTest',
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -146,6 +150,10 @@ export function defaultBindings(): Bindings {
       uiTabLeft: ['KeyQ'],
       uiTabRight: ['KeyE'],
       uiAlt: ['KeyX'],
+      debugQuality: ['F2'],
+      debugTimeBack: ['BracketLeft'],
+      debugTimeFwd: ['BracketRight'],
+      padTest: ['F1'],
     },
     pad: {
       moveForward: [],
@@ -188,6 +196,10 @@ export function defaultBindings(): Bindings {
       uiTabLeft: [PAD.LB],
       uiTabRight: [PAD.RB],
       uiAlt: [PAD.X],
+      debugQuality: [],
+      debugTimeBack: [],
+      debugTimeFwd: [],
+      padTest: [],
     },
   };
 }
