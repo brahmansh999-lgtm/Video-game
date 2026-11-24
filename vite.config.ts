@@ -1,12 +1,7 @@
 import { defineConfig } from 'vite';
 
-declare const process: { env: Record<string, string | undefined> };
-
-// GitHub Pages serves the site under /Video-game/; Vercel (VERCEL=1 at build time) serves from the root.
-const base = process.env.VERCEL ? '/' : '/Video-game/';
-
 export default defineConfig({
-  base,
+  base: '/',
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 4600,

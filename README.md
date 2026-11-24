@@ -13,15 +13,14 @@ Traffic, pedestrians, weather, missions and menus arrive in later phases.
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173/Video-game/
+npm run dev        # http://localhost:5173/
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-The build uses base `/Video-game/` (GitHub Pages) unless `VERCEL` is set, in which case it is
-served from `/`. Pushing to `main` runs `.github/workflows/deploy.yml` (typecheck → lint → build →
-GitHub Pages) and Vercel redeploys automatically.
+Live build: https://video-game-ruby.vercel.app/ — Vercel redeploys on every push to `main`.
+`.github/workflows/ci.yml` runs typecheck → lint → build on pushes and pull requests.
 
 ## Controls
 
