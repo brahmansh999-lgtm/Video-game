@@ -24,6 +24,7 @@ export class LandingGear {
   private readonly po = { x: 0, y: 0, z: 0 };
   private readonly k: number;
   private readonly c: number;
+  private readonly maxN: number;
 
   constructor(
     private readonly legs: GearLeg[],
@@ -34,6 +35,7 @@ export class LandingGear {
     this.prevComp = legs.map(() => 0);
     this.k = (mass * 9.81) / (legs.length * 0.16);
     this.c = 2 * Math.sqrt((this.k * mass) / legs.length) * 0.55;
+    this.maxN = ((mass * 9.81) / legs.length) * 8;
   }
 
   /**
@@ -78,12 +80,13 @@ export class LandingGear {
         continue;
       }
       const comp = max - hit.timeOfImpact;
-      const rate = (comp - this.prevComp[i]) / dt;
+      // no damper spike on the first frame of contact; cap rate for stability
+      const rate = this.prevComp[i] === 0 ? 0 : Math.max(-6, Math.min(6, (comp - this.prevComp[i]) / dt));
       this.prevComp[i] = comp;
       this.compression[i] = comp;
       this.contact[i] = true;
       this.contacts++;
-      const N = Math.max(0, this.k * comp + this.c * rate);
+      const N = Math.min(this.maxN, Math.max(0, this.k * comp + this.c * rate));
       // contact point velocity
       this.rel.copy(this.mount).addScaledVector(this.down, hit.timeOfImpact).sub(pos);
       this.pv.crossVectors(ang, this.rel).add(lin);

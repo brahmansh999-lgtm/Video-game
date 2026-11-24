@@ -1,0 +1,211 @@
+/* full-screen menus */
+.screen.menu {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, rgba(3, 6, 12, 0.55), rgba(3, 6, 12, 0.85));
+  pointer-events: auto;
+}
+.screen.main-menu {
+  background: linear-gradient(90deg, rgba(3, 6, 12, 0.88) 0, rgba(3, 6, 12, 0.35) 55%, transparent);
+  place-items: center start;
+}
+.menu-panel {
+  width: min(380px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 24px 28px;
+}
+.main-menu .menu-panel {
+  margin-left: clamp(16px, 8vw, 120px);
+}
+.menu-panel.wide {
+  width: min(720px, calc(100vw - 32px));
+  background: rgba(5, 9, 16, 0.92);
+  border: 1px solid #31e8ff33;
+  border-radius: 10px;
+}
+.menu-panel.scroll {
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+.pause-menu .menu-panel,
+.results .menu-panel {
+  background: rgba(5, 9, 16, 0.92);
+  border: 1px solid #31e8ff33;
+  border-radius: 10px;
+}
+.menu-panel .logo {
+  font-size: clamp(38px, 7vw, 60px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.menu-panel .logo span {
+  color: #31e8ff;
+  margin-left: 0.2em;
+}
+.menu-panel .tagline {
+  opacity: 0.7;
+  margin: 0 0 22px;
+}
+.menu-panel h2 {
+  margin: 0 0 12px;
+}
+.menu-panel h2.ok {
+  color: #5dff9f;
+}
+.menu-panel h2.bad {
+  color: #ff6b6b;
+}
+.menu-panel h4 {
+  margin: 18px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+.menu-panel .btn {
+  font-size: 16px;
+  padding: 11px 14px;
+}
+.menu-panel .btn.primary {
+  background: #0f3a48;
+  border-color: #31e8ff88;
+}
+.menu-panel .dim,
+.btn .dim {
+  opacity: 0.65;
+  font-size: 13px;
+}
+.btn .dim {
+  float: right;
+}
+.menu-foot {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 18px;
+}
+.kicker {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #31e8ff;
+}
+.brief-lines p {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.big-stars {
+  font-size: 44px;
+  color: #ffd76a;
+  letter-spacing: 0.1em;
+}
+.mission-list .btn.mission {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+}
+.mission-list .mt {
+  font-weight: 700;
+}
+.mission-list .md {
+  grid-column: 1;
+  font-size: 13px;
+  opacity: 0.7;
+}
+.mission-list .ms {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #ffd76a;
+  font-size: 14px;
+}
+.mission-list .btn.locked {
+  opacity: 0.45;
+}
+.remap-grid {
+  display: grid;
+  grid-template-columns: 1fr 150px 150px;
+  gap: 4px 10px;
+  align-items: center;
+}
+.remap-grid .hdr {
+  font-size: 12px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.remap-grid .btn.cellbtn {
+  margin: 0;
+  text-align: center;
+  padding: 6px;
+  font-size: 13px;
+}
+.remap-grid .name {
+  font-size: 14px;
+}
+
+/* mission tracker + subtitles */
+.tracker {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  background: rgba(8, 14, 24, 0.78);
+  border-left: 3px solid #ffb347;
+  padding: 8px 14px;
+  border-radius: 4px;
+  max-width: min(420px, calc(100vw - 32px));
+}
+.tracker .t {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ffb347;
+}
+.tracker .o {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 2px 0;
+}
+.tracker .o b {
+  color: #31e8ff;
+  margin-left: 6px;
+}
+.tracker .c {
+  font-size: 12px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.subtitle {
+  position: absolute;
+  left: 50%;
+  bottom: 26%;
+  transform: translateX(-50%);
+  max-width: min(760px, calc(100vw - 32px));
+  background: rgba(0, 0, 0, 0.72);
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* colour-blind safe palette: blue / orange / yellow instead of red / green / cyan */
+body.cb .tracker {
+  border-left-color: #3f9bff;
+}
+body.cb .tracker .t {
+  color: #3f9bff;
+}
+body.cb .tracker .o b,
+body.cb .kicker {
+  color: #ffd23f;
+}
+body.cb .menu-panel h2.ok {
+  color: #3f9bff;
+}
+body.cb .menu-panel h2.bad {
+  color: #ff9f1c;
+}
+body.cb [data-focus].focused {
+  outline-color: #ffd23f;
+}

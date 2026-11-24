@@ -1,5 +1,7 @@
 /** Bootstrap: loading screen with progress, error overlay, then the game. */
 import './ui/style.css';
+import './ui/menus.css';
+import { settings } from './core/settings';
 import { Game } from './game';
 
 const ui = document.getElementById('ui') as HTMLDivElement;
@@ -43,6 +45,7 @@ async function boot(): Promise<void> {
     fill.style.width = `${Math.round(p * 100)}%`;
     status.textContent = text;
   });
+  document.body.classList.toggle('cb', settings.colorBlindHud);
   loading.classList.add('done');
   setTimeout(() => loading.remove(), 800);
   game.start();

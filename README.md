@@ -5,12 +5,12 @@ parametric buildings, generated deterministically from a seed, built with Vite, 
 three.js, Rapier and postprocessing. Every asset is procedural — no downloaded models,
 textures or audio.
 
-**Status: phases 1–6 of 8 complete.** Explore on foot, drive three classes of car and fly three
-aircraft (light sports plane, jet, VTOL air taxi) with a full aerodynamic model, through a living
-city: lane-following traffic, pedestrians, drones and air taxis, maglev trains on a timetable,
-day/night and weather (clear, overcast, rain, storm with lightning). Architect Vision, the
-Landmark Codex, photo mode, a rotating minimap and a full-screen map are in. Missions, menus
-and settings arrive in phases 7–8.
+Explore on foot, drive three classes of car and fly three aircraft (light sports plane, jet, VTOL
+air taxi) with a full aerodynamic model, through a living city: lane-following traffic,
+pedestrians, drones and air taxis, maglev trains on a timetable, day/night and weather (clear,
+overcast, rain, storm with lightning). Play eight missions, discover 20 landmarks, read the city
+through Architect Vision and take photos. Everything — menus included — works with a controller
+alone or keyboard + mouse alone.
 
 ## Run
 
@@ -46,9 +46,39 @@ Keyboard/mouse and controller work interchangeably; prompts follow the last-used
 | D-pad up / down | Minimap zoom | Minimap zoom | (up: camera mode) | + / - |
 | D-pad left / right | — | Radio station | Radio station | N |
 | Full map + Landmark Codex | Tab / M | Tab / M | Tab / M | Tab / M |
+| Menu / Options | Pause | Pause | Pause | Esc |
 | L3 + R3 | Performance overlay | | | F3 |
 
+Menus: D-pad / left stick / arrows to move the focus ring, A / Enter to select, B / Esc to go back,
+left / right to change sliders and options. Every action can be remapped (keyboard and controller)
+in **Settings → Remap controls**; settings are saved to `localStorage`.
+
 Debug keys: F1 controller test, F2 cycle quality preset, F4 cycle weather, `[` / `]` scrub time of day.
+
+## Missions
+
+Data-driven (`src/missions/`): each mission is a config plus a small script returning objectives
+(reach, checkpoints / ring gates, take off, land and stop, follow, deliver, photograph…), with
+time limits, fail states, 1–3 star ratings, an unlock chain and progress saved to `localStorage`.
+Each has a briefing card (with optional subtitles), a HUD objective tracker, in-world markers and a
+results screen with retry / next / mission select / free roam.
+
+| # | Mission | Summary |
+|---|---|---|
+| 1 | Arrival | Tutorial: walk, look, drive to the Flux Core, Architect Vision |
+| 2 | Site Survey | Photograph the five Canopy Gardens landmarks in 6 minutes |
+| 3 | Ribbon Run | Time trial along the coastal ribbon drive |
+| 4 | Flight School | Take off, fly the ring circuit, land on 36L (scored on touchdown) |
+| 5 | Structural Inspection | VTOL through gates under skybridges and between towers |
+| 6 | Maglev Chase | Chase a runaway train by car, then by air, to its terminus |
+| 7 | Night Delivery | Rooftop deliveries to three vertiports at night in the rain |
+| 8 | Storm Finale | Jet course over every district in a storm, crosswind landing |
+
+## Accessibility
+
+Subtitles for briefings, a colour-blind-safe HUD palette (blue / orange / yellow instead of red /
+green / cyan), separate camera and aircraft invert, sensitivity, deadzone and response-curve
+settings, full remapping, and rumble that can be switched off.
 
 **Map:** pan with the left stick / WASD / mouse drag, zoom with the triggers / wheel, A / Enter or
 click sets a waypoint (shown on the minimap, as a light beam in the world and on the flight HUD),
@@ -106,7 +136,8 @@ src/
                           dome, terrace/block/hangar massing, bridges (cable/arch/catenary)
   player/                 character controller, procedural figure, camera rig, player state machine
   vehicles/               cars (Rapier ray-cast vehicle), aircraft, flightModel.ts, landing gear
-  audio/                  WebAudio engine: synthesized engines, wind, horn, stall warning
+  audio/                  WebAudio: synthesized engines, wind, rain, thunder, horn, stall warning, radio
+  missions/               mission runner, objective builders, ring gates, the eight missions
   world/life/             traffic, pedestrians, drones / air taxis, maglev trains (all pooled)
   ui/                     HUD, flight HUD, minimap, map + codex, photo mode, menu framework,
                           toasts, perf overlay, controller test
@@ -124,7 +155,7 @@ render trimesh.
 facade draw call; structural members and trees are instanced. Measured in the densest district
 (Flux Core): ~200 draw calls and ~270k triangles on High, ~280 calls on Ultra at night.
 
-**Trade-offs so far**
+**Trade-offs**
 
 - The minimap and map are drawn once from the world data into a cached 1024² canvas instead of
   an orthographic GPU render per chunk: same information, zero draw calls.

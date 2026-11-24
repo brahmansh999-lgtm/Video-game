@@ -10,6 +10,9 @@ import { GameLoop } from './core/loop';
 import { Physics } from './core/physics';
 import { saveSettings, settings, type QualityName } from './core/settings';
 import { GameAudio } from './gameAudio';
+import { GameFlow } from './gameFlow';
+import { MissionRunner } from './missions/runner';
+import type { MissionCtx } from './missions/types';
 import { GameHud } from './gameHud';
 import { InputManager } from './input/InputManager';
 import { PlayerController } from './player/playerController';
@@ -36,7 +39,7 @@ import { generateWorld } from './world/world';
 import type { WorldData } from './world/worldData';
 
 type Progress = (p: number, text: string) => void;
-type Mode = 'play' | 'map' | 'photo';
+type Mode = 'menu' | 'play' | 'map' | 'photo';
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 const QUALITIES: QualityName[] = ['low', 'medium', 'high', 'ultra'];
 
@@ -63,7 +66,11 @@ export class Game {
   private photo!: PhotoMode;
   private perf!: PerfOverlay;
   private padTest!: GamepadTest;
-  private mode: Mode = 'play';
+  private mode: Mode = 'menu';
+  private runner!: MissionRunner;
+  private flow!: GameFlow;
+  private dayFrozen = false;
+  private attract = 0;
   private q: QualityPreset = PRESETS[settings.quality];
   private statusTimer = 0;
   private status = '';
@@ -115,6 +122,7 @@ export class Game {
     g.map.onClose = () => {
       g.hud.setWaypoint(g.map.waypoint);
       g.mode = 'play';
+      g.hud.setVisible(true);
     };
     g.photo = new PhotoMode(ui, g.r, g.atmos, g.landmarks, (x, z) => g.world.terrain.heightAt(x, z));
     g.photo.onExit = () => {
@@ -128,6 +136,7 @@ export class Game {
     if (settings.showFps) g.perf.toggle();
     g.applyQuality(settings.quality, false);
     g.hookEvents(canvas);
+    g.setupMissions(ui);
     progress(0.95, 'Warming up');
     await tick();
     g.chunks.warm(g.player.pos.set(80, 2, 78), g.q);
@@ -135,7 +144,76 @@ export class Game {
     if (import.meta.env.DEV) {
       (window as unknown as { __flux: unknown }).__flux = { game: g, player: g.player, vehicles: g.vehicles };
     }
+    g.flow.openMain();
     return g;
+  }
+
+  private setupMissions(ui: HTMLElement): void {
+    const ctx: MissionCtx = {
+      player: this.player,
+      vehicles: this.vehicles,
+      world: this.world,
+      landmarks: this.landmarks,
+      maglev: this.life.maglev,
+      atmos: this.atmos,
+      weather: this.weather,
+      stats: { time: 0, touchdownScore: null, photos: 0, crashes: 0, extra: 0 },
+      flags: { visionUsed: false, photographed: new Set(), lastTouchdown: null, crashed: false },
+      elapsed: 0,
+      spawn: (sp) => {
+        const v = this.vehicles.spawn(sp);
+        this.player.hookImpact(v);
+        return v;
+      },
+      setTime: (h, frozen) => {
+        this.atmos.time = h;
+        this.dayFrozen = !!frozen;
+      },
+      setWeather: (w) => this.weather.set(w, true),
+      toast: (t) => events.emit('toast', { text: t, ms: 1600 }),
+    };
+    this.runner = new MissionRunner(ui, this.r.scene, ctx);
+    this.flow = new GameFlow({
+      ui,
+      input: this.input,
+      runner: this.runner,
+      freeRoam: (fresh) => this.startFreeRoam(fresh),
+      resume: () => this.resume(),
+      openMap: (codex) => this.openMap(codex),
+      togglePadTest: () => this.padTest.toggle(),
+      applyQuality: (q) => this.applyQuality(q),
+      onMenuOpen: () => {
+        this.mode = 'menu';
+        this.input.exitPointerLock();
+        this.hud.setVisible(false);
+      },
+    });
+  }
+
+  private startFreeRoam(fresh: boolean): void {
+    this.mode = 'play';
+    this.hud.setVisible(true);
+    if (!fresh) return;
+    this.player.placeOnFoot(80, 78, 0);
+    this.weather.set('clear', true);
+    this.atmos.time = 13;
+    this.dayFrozen = false;
+  }
+
+  private resume(): void {
+    if (this.runner.def && !this.runner.active) this.runner.abandon();
+    this.mode = 'play';
+    this.hud.setVisible(true);
+  }
+
+  private openMap(codex: boolean): void {
+    const p = this.player;
+    this.mode = 'map';
+    this.input.exitPointerLock();
+    this.hud.setVisible(false);
+    this.map.waypoint = this.hud.waypoint;
+    this.map.show(p.pos.x, p.pos.z, p.heading());
+    if (codex) this.map.showCodex();
   }
 
   private hookEvents(canvas: HTMLCanvasElement): void {
@@ -205,11 +283,12 @@ export class Game {
   private playInput(): void {
     const input = this.input;
     const p = this.player;
+    if (input.pressed('pause')) {
+      this.flow.openPause();
+      return;
+    }
     if (input.pressed('map')) {
-      this.mode = 'map';
-      this.input.exitPointerLock();
-      this.map.waypoint = this.hud.waypoint;
-      this.map.show(p.pos.x, p.pos.z, p.heading());
+      this.openMap(false);
       return;
     }
     // R3 is photo mode on foot and look-back in vehicles; P always opens photo mode.
@@ -221,11 +300,11 @@ export class Game {
     }
     if (input.pressed('vision')) {
       if (p.mode === 'air') events.emit('toast', { text: `HUD: ${this.hud.flight.cycle()}`, ms: 900 });
-      else
-        events.emit('toast', {
-          text: this.vision.toggle() ? 'Architect Vision on' : 'Architect Vision off',
-          ms: 1200,
-        });
+      else {
+        const on = this.vision.toggle();
+        events.emit('visionToggled', { on });
+        events.emit('toast', { text: on ? 'Architect Vision on' : 'Architect Vision off', ms: 1200 });
+      }
     }
     if (input.pressed('radio') && p.mode !== 'foot') this.gameAudio.cycleRadio();
     if (p.mode !== 'air') {
@@ -242,7 +321,8 @@ export class Game {
     this.debugInput(dt);
     this.padTest.update(input);
     const blocked = this.padTest.visible;
-    if (this.mode === 'play' && !blocked) this.playInput();
+    if (this.mode === 'menu') this.flow.update(input);
+    else if (this.mode === 'play' && !blocked) this.playInput();
     else if (this.mode === 'map') this.map.update(dt, input);
     else if (this.mode === 'photo') this.photo.update(input);
 
@@ -250,10 +330,14 @@ export class Game {
       this.vehicles.render(alpha, dt);
       this.player.frame(dt, alpha, input);
       this.life.frame(dt, this.player.pos);
+      this.runner.update(dt, dt);
+      this.hud.missionTarget = this.runner.currentMarker();
     } else if (this.mode === 'photo') this.photo.frame(dt, input);
+    else if (this.mode === 'menu' && this.flow.inMainMenu) this.attractCamera(dt);
 
     const camPos = this.r.camera.position;
-    const frozen = this.mode !== 'play' || input.isDown('debugTimeFwd') || input.isDown('debugTimeBack');
+    const frozen =
+      this.mode !== 'play' || this.dayFrozen || input.isDown('debugTimeFwd') || input.isDown('debugTimeBack');
     this.atmos.update(this.mode === 'map' ? 0 : dt, settings.dayLengthMinutes, this.player.pos, frozen);
     this.weather.update(dt, camPos, this.atmos, this.mats);
     this.vehicles.wind.copy(this.weather.wind);
@@ -280,6 +364,16 @@ export class Game {
     this.perf.update(dt, this.loop.fps, this.loop.frameMs, this.r.renderer, extra);
   }
 
+  /** Slow orbit around the Flux Core behind the main menu. */
+  private attractCamera(dt: number): void {
+    this.attract += dt * 0.04;
+    const cam = this.r.camera;
+    cam.position.set(Math.sin(this.attract) * 820, 260, Math.cos(this.attract) * 820);
+    cam.lookAt(0, 160, 0);
+    cam.fov = 55;
+    cam.updateProjectionMatrix();
+  }
+
   private updateStatus(dt: number): void {
     this.statusTimer -= dt;
     if (this.statusTimer > 0) return;
@@ -288,7 +382,7 @@ export class Game {
     const m = Math.floor((this.atmos.time - h) * 60);
     const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     const pos = this.player.pos;
-    this.status = `${DISTRICT_NAMES[districtAt(pos.x, pos.z)]} · ${clock} · ${this.weather.type} · ${this.q.label} · F1 pad test · F2 quality · F4 weather · [ ] time`;
+    this.status = `${DISTRICT_NAMES[districtAt(pos.x, pos.z)]} · ${clock} · ${this.weather.type} · ${this.q.label}`;
   }
 
   start(): void {

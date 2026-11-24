@@ -90,6 +90,10 @@ export class MapScreen {
     this.setTab('map');
   }
 
+  showCodex(): void {
+    this.setTab('codex');
+  }
+
   close(): void {
     this.open = false;
     this.codex.hide();

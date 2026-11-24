@@ -216,7 +216,10 @@ export class Aircraft implements Vehicle {
       yawIn = input.value('yawRight') - input.value('yawLeft');
       thrUp = input.value('throttleUp');
       thrDown = input.value('throttleDown');
-      brake = input.isDown('wheelBrake') || (thrDown > 0.3 && fd.throttle <= 0.001 && fd.onGround);
+      brake =
+        input.isDown('wheelBrake') ||
+        (thrDown > 0.3 && fd.throttle <= 0.001 && fd.onGround) ||
+        (this.kind === 'vtol' && fd.hover && fd.onGround);
     }
     fd.brake = brake;
     if (!(this.kind === 'vtol' && fd.hover))
@@ -327,7 +330,12 @@ export class Aircraft implements Vehicle {
     const fd = this.data;
     const m = this.def.mass;
     if (Math.abs(climb) > 0.05) this.hoverTargetAlt = this.pos.y + climb * 4;
-    if (fd.onGround && climb <= 0.05) this.hoverTargetAlt = Math.min(this.hoverTargetAlt, this.pos.y);
+    if (fd.onGround && climb <= 0.05) {
+      // settled on a pad: idle the rotors so the gear carries the weight and holds position
+      this.hoverTargetAlt = this.pos.y;
+      fd.throttle = 0;
+      return;
+    }
     const vsCmd = clamp((this.hoverTargetAlt - this.pos.y) * 0.9, -6, 6);
     const up = this.tmp2.set(0, 1, 0).applyQuaternion(this.st.q);
     const need = (m * (9.81 + (vsCmd - this.st.vel.y) * 2.2)) / Math.max(0.5, up.y);

@@ -19,6 +19,9 @@ export class GameHud {
   readonly minimap: Minimap;
   /** Player-placed waypoint (from the map). */
   waypoint: THREE.Vector3 | null = null;
+  /** Current mission objective target (set every frame by the game). */
+  missionTarget: THREE.Vector3 | null = null;
+  private readonly missionMarker: MapMarker = { x: 0, z: 0, color: '#ffb347', shape: 'diamond' };
   private readonly beacon: THREE.Mesh;
   private readonly markers: MapMarker[];
   private readonly wpMarker: MapMarker = { x: 0, z: 0, color: '#ff5fd2', shape: 'diamond' };
@@ -100,6 +103,12 @@ export class GameHud {
       }
     } else this.beacon.visible = false;
     if (!this.visible) return;
+    const mi = this.markers.indexOf(this.missionMarker);
+    if (this.missionTarget) {
+      this.missionMarker.x = this.missionTarget.x;
+      this.missionMarker.z = this.missionTarget.z;
+      if (mi < 0) this.markers.push(this.missionMarker);
+    } else if (mi >= 0) this.markers.splice(mi, 1);
     this.hud.update(input, player.mode, player.candidate, v, status);
     this.minimap.draw(p.x, p.z, player.heading(), this.markers);
     if (v instanceof Aircraft) {
@@ -110,6 +119,11 @@ export class GameHud {
 
   /** Waypoint if set; otherwise nearest vertiport (VTOL) or runway threshold (fixed wing). */
   private pickFlightTarget(v: Aircraft, p: THREE.Vector3): void {
+    if (this.missionTarget) {
+      this.fhTarget.copy(this.missionTarget);
+      this.fhLabel = 'OBJ';
+      return;
+    }
     if (this.waypoint) {
       this.fhTarget.copy(this.waypoint);
       this.fhLabel = 'WPT';
