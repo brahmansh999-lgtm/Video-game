@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../../core/rng';
 import type { Materials } from '../../render/materials';
-import { PART_GEO } from '../../player/figure';
+import { BODY, HAIR_COLORS, PED_GEO, SKIN_TONES } from '../../player/figure';
 import type { RoadGraph } from '../roads';
 import type { Terrain } from '../terrain';
 
@@ -23,15 +23,20 @@ interface Ped {
   y: number;
   z: number;
   yaw: number;
+  scale: number;
 }
 
-const PARTS: { geo: keyof typeof PART_GEO; ox: number; oy: number; swing: number }[] = [
-  { geo: 'torso', ox: 0, oy: 1.3, swing: 0 },
-  { geo: 'head', ox: 0, oy: 1.74, swing: 0 },
-  { geo: 'limb', ox: -0.11, oy: 0.94, swing: 0.7 },
-  { geo: 'limb', ox: 0.11, oy: 0.94, swing: -0.7 },
-  { geo: 'arm', ox: -0.27, oy: 1.54, swing: -0.55 },
-  { geo: 'arm', ox: 0.27, oy: 1.54, swing: 0.55 },
+type PartKey = keyof typeof PED_GEO;
+type Tone = 'shirt' | 'skin' | 'hair' | 'pants';
+const TORSO_Y = BODY.hipY + BODY.spineY;
+const PARTS: { geo: PartKey; tone: Tone; ox: number; oy: number; swing: number }[] = [
+  { geo: 'torso', tone: 'shirt', ox: 0, oy: TORSO_Y, swing: 0 },
+  { geo: 'head', tone: 'skin', ox: 0, oy: TORSO_Y + BODY.neckY - 0.02, swing: 0 },
+  { geo: 'hair', tone: 'hair', ox: 0, oy: TORSO_Y + BODY.neckY - 0.02, swing: 0 },
+  { geo: 'leg', tone: 'pants', ox: -BODY.hipX, oy: BODY.hipY, swing: 0.55 },
+  { geo: 'leg', tone: 'pants', ox: BODY.hipX, oy: BODY.hipY, swing: -0.55 },
+  { geo: 'arm', tone: 'skin', ox: -BODY.shoulderX, oy: TORSO_Y + BODY.shoulderY, swing: -0.45 },
+  { geo: 'arm', tone: 'skin', ox: BODY.shoulderX, oy: TORSO_Y + BODY.shoulderY, swing: 0.45 },
 ];
 
 export class Pedestrians {
@@ -46,6 +51,7 @@ export class Pedestrians {
   private readonly e = new THREE.Euler();
   private readonly p = new THREE.Vector3();
   private readonly one = new THREE.Vector3(1, 1, 1);
+  private readonly sc = new THREE.Vector3(1, 1, 1);
   private readonly hidden = new THREE.Matrix4().makeTranslation(0, -2000, 0);
   density = 1;
 
@@ -56,18 +62,20 @@ export class Pedestrians {
   ) {
     const color = new THREE.Color();
     PARTS.forEach((part, k) => {
-      const mat = k === 1 ? mats.skin : new THREE.MeshStandardMaterial({ roughness: 0.85 });
-      const im = new THREE.InstancedMesh(PART_GEO[part.geo], mat, MAX_PEDS);
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: part.tone === 'skin' ? 0.65 : part.tone === 'hair' ? 0.9 : 0.85,
+      });
+      const im = new THREE.InstancedMesh(PED_GEO[part.geo], mat, MAX_PEDS);
       im.frustumCulled = false;
-      im.castShadow = k < 2;
+      im.castShadow = k < 5;
       for (let i = 0; i < MAX_PEDS; i++) {
         im.setMatrixAt(i, this.hidden);
-        if (k !== 1) {
-          const shirt = mats.cloth[(i * 3) % mats.cloth.length].color;
-          const pants = mats.cloth[(i * 5 + 2) % mats.cloth.length].color;
-          color.copy(k === 2 || k === 3 ? pants : shirt);
-          im.setColorAt(i, color);
-        }
+        if (part.tone === 'skin') color.setHex(SKIN_TONES[(i * 7 + 3) % SKIN_TONES.length]);
+        else if (part.tone === 'hair') color.setHex(HAIR_COLORS[(i * 5 + 1) % HAIR_COLORS.length]);
+        else if (part.tone === 'pants') color.copy(mats.cloth[(i * 5 + 2) % mats.cloth.length].color);
+        else color.copy(mats.cloth[(i * 3) % mats.cloth.length].color);
+        im.setColorAt(i, color);
       }
       this.meshes.push(im);
       this.group.add(im);
@@ -85,6 +93,7 @@ export class Pedestrians {
         y: 0,
         z: 0,
         yaw: 0,
+        scale: 0.92 + ((i * 37) % 17) / 100,
       });
     }
   }
@@ -163,12 +172,18 @@ export class Pedestrians {
       p.phase += dt * p.speed * 3.2;
       this.q.setFromEuler(this.e.set(0, p.yaw, 0));
       this.p.set(p.x, p.y, p.z);
-      this.root.compose(this.p, this.q, this.one);
+      this.sc.setScalar(p.scale);
+      this.root.compose(this.p, this.q, this.sc);
       const s = Math.sin(p.phase);
+      const bob = Math.abs(Math.cos(p.phase)) * 0.02;
       for (let k = 0; k < PARTS.length; k++) {
         const part = PARTS[k];
-        this.q.setFromEuler(this.e.set(s * part.swing, 0, 0));
-        this.p.set(part.ox, part.oy, 0);
+        const ax = s * part.swing;
+        // torso counter-rotates slightly; head and hair follow the torso
+        const ay = k < 3 ? s * 0.08 : 0;
+        const az = k >= 5 ? Math.sign(part.ox) * 0.07 : 0; // arms hang slightly away from the body
+        this.q.setFromEuler(this.e.set(ax, ay, az));
+        this.p.set(part.ox, part.oy + bob, 0);
         this.local.compose(this.p, this.q, this.one);
         this.out.multiplyMatrices(this.root, this.local);
         this.meshes[k].setMatrixAt(i, this.out);

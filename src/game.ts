@@ -111,6 +111,7 @@ export class Game {
     for (const s of defaultSpawns(g.world)) g.vehicles.spawn(s);
     g.r.scene.add(g.vehicles.group);
     g.player = new PlayerController(g.physics, g.mats, g.r.camera, g.vehicles, g.world, g.r.scene);
+    g.player.carjack = { traffic: g.life.traffic, drivers: g.life.drivers };
     g.player.placeOnFoot(80, 78, 0);
     progress(0.86, 'Drawing the map');
     await tick();

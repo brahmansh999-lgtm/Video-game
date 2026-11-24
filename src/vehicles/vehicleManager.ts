@@ -17,6 +17,10 @@ export interface SpawnSpec {
   yaw: number;
   y?: number;
   tag?: string;
+  /** Paint colour (hex); matched against the shared paints when possible. */
+  paint?: number;
+  /** Carjacked from traffic: only a few are kept alive at once. */
+  stolen?: boolean;
 }
 
 /** Parked vehicles across the city. */
@@ -39,10 +43,15 @@ export function defaultSpawns(world: WorldData): SpawnSpec[] {
   return list;
 }
 
+/** Stolen cars kept in the world at once; the oldest abandoned one is removed beyond this. */
+const MAX_STOLEN = 4;
+
 export class VehicleManager {
   readonly vehicles: Vehicle[] = [];
   readonly tags = new Map<string, Vehicle>();
   readonly group = new THREE.Group();
+  private readonly stolen: Vehicle[] = [];
+  private readonly paintCache = new Map<number, THREE.Material>();
   private readonly tmp = new THREE.Vector3();
   wind = new THREE.Vector3();
 
@@ -66,16 +75,48 @@ export class VehicleManager {
       v = a;
     } else {
       const def = CARS[s.type];
-      const paint = this.mats.paints[(this.vehicles.length * 3) % this.mats.paints.length];
+      const paint =
+        s.paint !== undefined
+          ? this.paintFor(s.paint)
+          : this.mats.paints[(this.vehicles.length * 3) % this.mats.paints.length];
       v = new Car(this.phys, def, this.mats, paint, s.x, y, s.z, s.yaw);
     }
     this.vehicles.push(v);
     if (s.tag) this.tags.set(s.tag, v);
+    if (s.stolen) {
+      this.stolen.push(v);
+      this.pruneStolen();
+    }
     this.group.add(v.root);
     return v;
   }
 
+  private paintFor(hex: number): THREE.Material {
+    const shared = this.mats.paints.find((p) => p.color.getHex() === hex);
+    if (shared) return shared;
+    let m = this.paintCache.get(hex);
+    if (!m) {
+      m = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.3, metalness: 0.6 });
+      this.paintCache.set(hex, m);
+    }
+    return m;
+  }
+
+  /** Drop the oldest abandoned stolen cars so carjacking cannot pile up physics bodies. */
+  private pruneStolen(): void {
+    for (let i = 0; this.stolen.length > MAX_STOLEN && i < this.stolen.length;) {
+      const v = this.stolen[i];
+      if (v.driven) i++;
+      else {
+        this.stolen.splice(i, 1);
+        this.remove(v);
+      }
+    }
+  }
+
   remove(v: Vehicle): void {
+    const si = this.stolen.indexOf(v);
+    if (si >= 0) this.stolen.splice(si, 1);
     const i = this.vehicles.indexOf(v);
     if (i >= 0) this.vehicles.splice(i, 1);
     for (const [k, t] of this.tags) if (t === v) this.tags.delete(k);

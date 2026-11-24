@@ -9,7 +9,13 @@ import { Aircraft } from '../vehicles/aircraft';
 import { Car } from '../vehicles/car';
 import type { Vehicle } from '../vehicles/vehicle';
 import type { VehicleManager } from '../vehicles/vehicleManager';
+import type { CarClass } from '../vehicles/carDefs';
+import type { FleeingDrivers } from '../world/life/fleeingDrivers';
+import type { Traffic } from '../world/life/traffic';
 import type { WorldData } from '../world/worldData';
+
+const STEAL_REACH = 3.2;
+const STOLEN_CLASSES: CarClass[] = ['ev', 'ev', 'coupe', 'offroad'];
 import { CameraRig } from './cameraRig';
 import { Character } from './character';
 
@@ -22,6 +28,11 @@ export class PlayerController {
   mode: PlayerMode = 'foot';
   /** Vehicle within reach (for the enter prompt). */
   candidate: Vehicle | null = null;
+  /** Traffic car index that can be carjacked right now, or -1. */
+  stealable = -1;
+  /** City traffic and the pool of fleeing drivers (set by the game once city life exists). */
+  carjack: { traffic: Traffic; drivers: FleeingDrivers } | null = null;
+  private stealCount = 0;
   /** When set, the player cannot leave the current vehicle (mission rule). */
   lockVehicle = false;
   readonly pos = new THREE.Vector3();
@@ -67,7 +78,12 @@ export class PlayerController {
     if (this.mode === 'foot') {
       this.character.frameInput(input);
       this.candidate = this.vehicles.nearest(this.pos, 3);
-      if (this.candidate && input.pressed('enterExit')) this.enter(this.candidate);
+      this.stealable =
+        !this.candidate && this.carjack ? this.carjack.traffic.stealable(this.pos, STEAL_REACH) : -1;
+      if (input.pressed('enterExit')) {
+        if (this.candidate) this.enter(this.candidate);
+        else if (this.stealable >= 0) this.steal(this.stealable);
+      }
       return;
     }
     const v = this.vehicle;
@@ -94,6 +110,32 @@ export class PlayerController {
     this.q.set(r.x, r.y, r.z, r.w);
     this.rig.resetSmooth(this.q);
     events.emit('vehicleEntered', { kind: v.kind });
+  }
+
+  /** Carjack traffic car i: swap it for a drivable car, throw the driver out and get in. */
+  steal(i: number): void {
+    const cj = this.carjack;
+    if (!cj) return;
+    const c = cj.traffic.take(i);
+    const type = STOLEN_CLASSES[this.stealCount++ % STOLEN_CLASSES.length];
+    const v = this.vehicles.spawn({ type, x: c.x, y: c.y, z: c.z, yaw: c.yaw, paint: c.color, stolen: true });
+    this.hookImpact(v);
+    // driver leaves through the left door and runs away from the player
+    const s = Math.sin(c.yaw);
+    const co = Math.cos(c.yaw);
+    const lx = c.x - co * 1.5;
+    const lz = c.z + s * 1.5;
+    let fx = lx - this.pos.x;
+    let fz = lz - this.pos.z;
+    if (Math.hypot(fx, fz) < 0.5) {
+      fx = -co;
+      fz = s;
+    }
+    // bias away from the road (out of the left door) so they do not run into traffic
+    cj.drivers.spawn(lx, c.y, lz, fx - co * 1.5, fz + s * 1.5);
+    this.enter(v);
+    rumble(0.35, 0.2, 120);
+    events.emit('toast', { text: `Carjacked — ${v.name}`, ms: 1800 });
   }
 
   exit(): void {

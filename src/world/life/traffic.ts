@@ -8,6 +8,18 @@ import type { RoadGraph } from '../roads';
 import type { Terrain } from '../terrain';
 
 export const MAX_TRAFFIC = 90;
+export const TRAFFIC_PAINTS = [
+  0xe8e8e8, 0x1b1d22, 0xc8302a, 0x2d6bd6, 0xf2b21b, 0x2a9d8f, 0x8a8f99, 0x5a3f8a,
+];
+
+/** Pose and paint of a traffic car that was just taken off the road (carjacked). */
+export interface TakenCar {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  color: number;
+}
 const SPAWN_R = 520;
 const DESPAWN_R = 700;
 
@@ -23,6 +35,7 @@ interface Agent {
   x: number;
   y: number;
   z: number;
+  color: number;
   body: RAPIER.RigidBody;
 }
 
@@ -72,7 +85,7 @@ export class Traffic {
     const lg = new THREE.BoxGeometry(1.5, 0.12, 4.3).translate(0, 0.62, 0);
     this.lights = new THREE.InstancedMesh(lg, mats.lightLamp, MAX_TRAFFIC);
     this.lights.frustumCulled = false;
-    const palette = [0xe8e8e8, 0x1b1d22, 0xc8302a, 0x2d6bd6, 0xf2b21b, 0x2a9d8f, 0x8a8f99, 0x5a3f8a];
+    const palette = TRAFFIC_PAINTS;
     for (let i = 0; i < MAX_TRAFFIC; i++) {
       const body = phys.world.createRigidBody(
         RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -500 - i * 5, 0),
@@ -93,6 +106,7 @@ export class Traffic {
         x: 0,
         y: -500,
         z: 0,
+        color: palette[i % palette.length],
         body,
       });
       this.color.setHex(palette[i % palette.length]);
@@ -148,6 +162,52 @@ export class Traffic {
     a.cruise = e.kind === 'highway' ? 24 + this.rnd() * 6 : 11 + this.rnd() * 5;
   }
 
+  /**
+   * Index of a stopped (or crawling) traffic car whose bodywork is within `reach` metres of p,
+   * or -1. Distance is measured to the car's footprint, not its centre.
+   */
+  stealable(p: THREE.Vector3, reach: number): number {
+    let best = -1;
+    let bd = reach;
+    for (let i = 0; i < this.agents.length; i++) {
+      const a = this.agents[i];
+      if (!a.active || a.speed > 2.5 || Math.abs(p.y - a.y) > 2.5) continue;
+      const dx = p.x - a.x;
+      const dz = p.z - a.z;
+      if (dx * dx + dz * dz > 64) continue;
+      // into the car's local frame (forward = -Z)
+      const c = Math.cos(a.yaw);
+      const sn = Math.sin(a.yaw);
+      const lx = dx * c - dz * sn;
+      const lz = dx * sn + dz * c;
+      const d = Math.hypot(Math.max(0, Math.abs(lx) - 0.9), Math.max(0, Math.abs(lz) - 2.1));
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /** Take traffic car i off the road (it is replaced by a drivable car) and return its pose. */
+  take(i: number): TakenCar {
+    const a = this.agents[i];
+    const out = { x: a.x, y: a.y, z: a.z, yaw: a.yaw, color: a.color };
+    a.active = false;
+    a.speed = 0;
+    this.kin.x = 0;
+    this.kin.y = -500 - i * 5;
+    this.kin.z = 0;
+    a.body.setTranslation(this.kin, true);
+    a.body.setNextKinematicTranslation(this.kin);
+    this.m.makeTranslation(0, -1000, 0);
+    this.mesh.setMatrixAt(i, this.m);
+    this.lights.setMatrixAt(i, this.m);
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.lights.instanceMatrix.needsUpdate = true;
+    return out;
+  }
+
   /** obstacles: positions the cars should not drive into (player, player vehicle). */
   fixed(dt: number, focus: THREE.Vector3, obstacles: THREE.Vector3[], night: number): void {
     const want = Math.floor(MAX_TRAFFIC * this.density);
@@ -184,8 +244,8 @@ export class Traffic {
         const oz = o.z - fz;
         const ahead = ox * dx + oz * dz;
         const lat = Math.abs(-ox * dz + oz * dx);
-        if (ahead > -1 && ahead < 22 && lat < 2.6 && Math.abs(o.y - a.y) < 4)
-          target = Math.min(target, Math.max(0, (ahead - 4) * 0.8));
+        if (ahead > -1 && ahead < 22 && lat < 3.0 && Math.abs(o.y - a.y) < 4)
+          target = Math.min(target, Math.max(0, (ahead - 1.4) * 0.9));
       }
       for (let j = 0; j < this.agents.length; j++) {
         const b = this.agents[j];

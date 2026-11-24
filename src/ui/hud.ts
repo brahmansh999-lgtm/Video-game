@@ -50,11 +50,13 @@ export class Hud {
     input: InputManager,
     mode: PlayerMode,
     candidate: Vehicle | null,
+    canSteal: boolean,
     vehicle: Vehicle | null,
     status: string,
   ): void {
     // prompt
     if (mode === 'foot' && candidate) this.setPrompt(`${input.glyph('enterExit')} Enter ${candidate.name}`);
+    else if (mode === 'foot' && canSteal) this.setPrompt(`${input.glyph('enterExit')} Steal car`);
     else if (vehicle && mode === 'air' && vehicle.canExit())
       this.setPrompt(`${input.glyph('enterExit')} Exit aircraft`);
     else this.setPrompt('');

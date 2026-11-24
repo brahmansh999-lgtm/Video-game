@@ -4,6 +4,7 @@ import type { Physics } from '../../core/physics';
 import type { Materials } from '../../render/materials';
 import type { WorldData } from '../worldData';
 import { Drones } from './drones';
+import { FleeingDrivers } from './fleeingDrivers';
 import { Maglev } from './maglev';
 import { Pedestrians } from './pedestrians';
 import { Traffic } from './traffic';
@@ -14,6 +15,7 @@ export class Life {
   readonly peds: Pedestrians;
   readonly drones: Drones;
   readonly maglev: Maglev;
+  readonly drivers: FleeingDrivers;
   /** Positions traffic must not drive into (player, player's vehicle). */
   private readonly obstacles = [new THREE.Vector3(), new THREE.Vector3()];
 
@@ -22,12 +24,14 @@ export class Life {
     this.peds = new Pedestrians(world.roads, world.terrain, mats);
     this.drones = new Drones(mats);
     this.maglev = new Maglev(mats);
+    this.drivers = new FleeingDrivers(world.terrain, mats);
     this.group.add(
       this.traffic.mesh,
       this.traffic.lights,
       this.peds.group,
       this.drones.group,
       this.maglev.mesh,
+      this.drivers.group,
     );
   }
 
@@ -47,5 +51,6 @@ export class Life {
   frame(dt: number, focus: THREE.Vector3): void {
     this.peds.update(dt, focus, focus);
     this.drones.update(dt);
+    this.drivers.update(dt);
   }
 }

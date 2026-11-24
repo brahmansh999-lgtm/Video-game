@@ -109,7 +109,7 @@ export class GameHud {
       this.missionMarker.z = this.missionTarget.z;
       if (mi < 0) this.markers.push(this.missionMarker);
     } else if (mi >= 0) this.markers.splice(mi, 1);
-    this.hud.update(input, player.mode, player.candidate, v, status);
+    this.hud.update(input, player.mode, player.candidate, player.stealable >= 0, v, status);
     this.minimap.draw(p.x, p.z, player.heading(), this.markers);
     if (v instanceof Aircraft) {
       this.pickFlightTarget(v, p);
